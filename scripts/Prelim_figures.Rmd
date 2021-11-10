@@ -1,0 +1,64 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "01/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 999)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(ggplot2)
+```
+
+
+# Load data
+
+```{r}
+dat<-read.csv(here(paste0("output_data/Prop_basin_iso3_",x,".csv")))
+```
+
+# Number and percent of basins that cross more than one country
+
+```{r}
+unique_dat<- dat %>% 
+  dplyr::select(MAIN_BAS, n) %>% 
+  filter(!duplicated(MAIN_BAS))
+
+length(unique(unique_dat$MAIN_BAS))
+length(which(unique_dat$n>1))
+
+length(which(unique_dat$n>1))/length(unique(unique_dat$MAIN_BAS))
+
+```
+
+```{r}
+sub_dat<-dat %>% 
+  filter(n>1)
+```
+
+```{r}
+count_df<-unique_dat %>% 
+  count(n) %>% 
+  rename(n_basin = nn,
+         n_iso3 = n)
+
+ggplot(count_df, aes(y = n_basin, x = as.factor(n_iso3))) +
+  geom_bar(stat = "identity") +
+  xlab("Number of countries") +
+  ylab("Number of basins") +
+  theme_bw() 
+```
+
+```{r}
+ggsave(here("figures/Africa_basins_country_count.png"), width = 5, height = 3, dpi = 300)
+```
+
+

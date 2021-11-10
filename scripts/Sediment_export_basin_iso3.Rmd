@@ -1,0 +1,103 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "04/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(raster)
+library(here)
+library(gdalUtils)
+library(terra)
+library(pbmcapply)
+
+t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+```
+# Load data
+
+Run this once to unzip file, could add code to download this from repo
+
+```{r}
+#system('7z e -o/home/kuempel/transboundary_sediment/raw_data/Sediment /home/kuempel/transboundary_sediment/raw_data/Sediment/Global_map.7z')
+```
+
+# Import sediment tif
+
+```{r}
+#sed<-raster(here("raw_data/Sediment/sediment_export_global.tif"))
+```
+
+# Project raster
+
+```{r}
+#gdalwarp(here("raw_data/Sediment/sediment_export_global.tif"), here("raw_data/Sediment/sediment_export_global_moll.tif"), s_srs = "+proj=longlat +datum=WGS84 +no_defs", t_srs = t_crs)
+```
+
+```{r}
+sed_moll<-raster(here("raw_data/Sediment/sediment_export_global_moll.tif"))
+```
+
+# Read in basin/country overlap
+
+Try with Africa
+
+```{r}
+basin_iso3_files<-list.files(here("output_data"), pattern = ".shp", full.names = T)
+
+# Remove Antarctica bc it doesn't have sediment data
+
+basin_iso3_files<-basin_iso3_files[-2]
+```
+
+# Summarise sediment within each MAIN_BAS/Country
+
+```{r}
+quantify_sediment<-function(x){
+
+basin_iso3<-st_read(x)
+
+name<-str_remove(x, here("output_data/Prop_basin_iso3_"))
+name2<-str_remove(name, ".shp")
+
+st_crs(basin_iso3)<-t_crs
+
+sub_sed<-raster::crop(sed_moll, basin_iso3)
+
+spatras<-rast(sub_sed)
+
+spatvec<-vect(basin_iso3)
+
+sed_export<-terra::extract(spatras, spatvec, list = T)
+
+sed_export2<-lapply(sed_export, unlist)
+
+sed_sum<-lapply(sed_export2, FUN=sum, na.rm = T) %>% #removed nas
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(sed_sum = '.')
+
+sed_mean<-lapply(sed_export2, FUN=mean, na.rm = T) %>% #removed nas
+  unlist() %>% 
+  as.data.frame() %>% 
+  rename(sed_mean = '.')
+
+done<-cbind(basin_iso3, sed_sum) %>% 
+  cbind(., sed_mean)
+
+st_write(done, here(paste0("output_data/Sediment/Sediment_basin_iso3_",name2,".shp")), delete_layer = T)
+}
+
+```
+
+```{r}
+
+pbmclapply(basin_iso3_files, quantify_sediment, mc.cores = length(basin_iso3_files), mc.style = "ETA")
+```
+

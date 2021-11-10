@@ -1,0 +1,140 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "28/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+library(sf)
+library(raster)
+library(countrycode)
+library(parallel)
+library(pbmcapply)
+
+t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+```
+
+# Load data
+
+## Countries
+```{r message = FALSE}
+#gadm<-st_read(here("output_data/GADM36/gadm36_country.shp")) %>% 
+#  st_transform(., crs = t_crs)
+
+#gadm<- gadm %>% 
+#  st_make_valid(.) %>% 
+#  group_by(GID_0) %>% 
+#  summarise()
+
+#gadm_area<- gadm %>% 
+#  mutate(area_km2 = as.numeric(st_area(.) * 1e-6),
+#         Country = countrycode(GID_0, "iso3c", "country.name")) %>% 
+#  rename(ISO3 = GID_0) %>% 
+#  dplyr::select(ISO3, Country, area_km2, geometry)
+
+#FIX: Some values were not matched unambiguously: XAD, XCA, XCL, XKO, XNC, XPI, XSP
+
+#st_write(gadm_area, here("output_data/GADM36/gadm36_dissolve_area.shp"))
+
+gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>% 
+  st_set_crs(t_crs)
+
+```
+
+## Basins
+
+```{r}
+basins<-st_read(here("output_data/Basins/Basins_lv8_mainbasin.shp"))
+  
+basins_area<- basins %>% 
+  st_transform(., crs = t_crs) %>% 
+  st_make_valid() %>% 
+  mutate(b_area_km2 = as.numeric(st_area(.))*1e-6)
+```
+
+# Intersect countries and basins
+
+```{r}
+continents<-read.csv(here("raw_data/Countries_by_continent.csv"))
+
+cont<-as.list(unique(continents$Continent))
+```
+
+
+```{r message = FALSE}
+iso3_basin<-function(x){
+  sub_iso3<-continents %>% 
+    filter(Continent == x)
+  
+  sub_gadm<-gadm_area %>% 
+  filter(ISO3 %in% sub_iso3$ISO3)
+
+  gadm_basin<-st_intersection(sub_gadm, basins_area)
+
+  gadm_basin_area<-gadm_basin %>% 
+    mutate(iso3_b_km2 = as.numeric(st_area(.))*1e-6,
+         prop_basin = iso3_b_km2/b_area_km2, #Proportion of basin within each country
+         Continent = as.character(x))
+  
+    
+  gadm_basin_df<- gadm_basin_area %>% 
+    as.data.frame() %>% 
+    dplyr::select(-geometry) 
+
+  n_iso3_basin<- gadm_basin_area %>% 
+    as.data.frame() %>% 
+    dplyr::select(-geometry) %>% 
+    count(MAIN_BAS) #number of countries in each basin
+  
+  all<-full_join(gadm_basin_df, n_iso3_basin)
+  
+  gadm_basin_area2<- st_collection_extract(gadm_basin_area, "POLYGON")
+  
+  st_write(gadm_basin_area2, here(paste0("output_data/Prop_basin_iso3_",x,".shp")), delete_layer = TRUE)
+  
+  write.csv(all, here(paste0("output_data/Prop_basin_iso3_",x,".csv")))
+}
+
+```
+
+```{r}
+pbmclapply(cont, iso3_basin, mc.cores = 7, mc.style = "ETA")
+```
+
+# Calculate sediment
+
+Calculate amount of sediment from each country in each basin
+
+```{r}
+sed<-here("raw_data/Sediment")
+```
+
+
+# Calculate sediment proportions
+
+
+# Pourpoints
+
+Determine if most sediment comes from same country as pourpoint is located or different?
+
+```{r}
+pp
+```
+
+
+# Test results/figures
+
+## Number of countries in each basin
+
+```{r}
+
+```
+
+# Stacked bar chart of proportion of countries in each basin
