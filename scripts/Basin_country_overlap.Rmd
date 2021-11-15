@@ -87,6 +87,9 @@ iso3_basin<-function(x){
   gadm_basin_df<- gadm_basin_area %>% 
     as.data.frame() %>% 
     dplyr::select(-geometry) 
+  
+  test<-gadm_basin_df %>% 
+    filter(MAIN_BAS == 1080020040)
 
   n_iso3_basin<- gadm_basin_area %>% 
     as.data.frame() %>% 
@@ -108,13 +111,6 @@ iso3_basin<-function(x){
 pbmclapply(cont, iso3_basin, mc.cores = 7, mc.style = "ETA")
 ```
 
-# Calculate sediment
-
-Calculate amount of sediment from each country in each basin
-
-```{r}
-sed<-here("raw_data/Sediment")
-```
 
 
 # Calculate sediment proportions
