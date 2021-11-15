@@ -1,0 +1,177 @@
+---
+title: "Trans_basin_subset"
+author: "Caitie"
+date: "10/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(pbmcapply)
+
+options(scipen = 999)
+
+t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+```
+
+# Description
+
+This code aims to subset the countries with transboundary basins, match this with sediment export data and pourpoint data
+
+# Read in data
+
+```{r}
+files<-list.files(path = here("output_data"), pattern = "Prop_basin_iso3_", full.names = T)
+
+sub_files<-files[grep(pattern = ".csv", files)]
+sub_files<-sub_files[-2] #Remove Antarctica
+
+shp_files<-list.files(path = here("output_data/Sediment/"), pattern = ".shp", full.names = T)
+```
+
+# Pourpoint data
+
+```{r}
+pp<-st_read(here("raw_data/Pourpoints/pour_points_all.shp")) %>% 
+  st_transform(., crs = t_crs)
+```
+
+# Calculate terrestrial transboundary sediment within each continent
+
+```{r}
+land_trans_sed<-function(x){
+  dat<-read.csv(x) %>% 
+    filter(n>1)
+  
+  name<-str_remove(x, here("output_data/Prop_basin_iso3_"))
+  name2<-str_remove(name, ".csv")
+  
+  sub_shp<-shp_files[grep(pattern = name2, shp_files)]
+
+  sed_dat<-st_read(sub_shp) %>% 
+  dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean)
+
+  sed_basin<-right_join(sed_dat, dat, by = c("MAIN_BAS", "Country", "ISO3", "Continent")) 
+
+  total_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_sed = sum(sed_sum, na.rm = T))
+  
+  sed_basin<-sed_basin %>% 
+  full_join(., total_sed, by = "MAIN_BAS") %>% 
+  mutate(prop_sed = sed_sum/total_sed)
+  
+  sed_bas_pp<-st_join(sed_basin, pp) %>% 
+  filter(!is.na(ISO3) == T)
+
+  pp_basins<-sed_bas_pp %>% 
+    filter(!is.na(HYRIV_I) == T)
+
+  sub_sed_bas_pp<-sed_bas_pp %>% 
+    filter(MAIN_BAS %in% pp_basins$MAIN_BAS)
+  
+  total_prop<-sed_basin %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_prop = sum(prop_sed, na.rm = T))
+  
+bas<-unique(sub_sed_bas_pp$MAIN_BAS)
+
+all<-c()
+
+for(i in 1:length(bas)){
+  print(i)
+  sub<-sub_sed_bas_pp %>% 
+    filter(MAIN_BAS == bas[i]) %>% 
+    as.data.frame() %>% 
+    dplyr::select(-geometry)
+  
+  test_sed<-sum(sub$sed_sum,na.rm = T)
+  
+  #If no sediment exported from basin we skip it
+  #I think this only occurs for MAIN_BAS 2080084740 in Asia
+  if(test_sed == 0){ 
+    next()
+  }
+  
+  sub_pp<-unique(sub$HYRIV_I) #assume NAs mean there is only 1 pp in basin
+  
+  sub_pp<-sub_pp[!is.na(sub_pp) == T]
+  
+  pp_num<- length(sub_pp)
+  
+  pp_prop <- sub %>% 
+    group_by(MAIN_BAS, ISO3) %>% 
+    mutate(n_pp = length(unique(HYRIV_I)),
+           total_pp = pp_num,
+           n_pp = ifelse(is.na(HYRIV_I) == T, 0, as.numeric(n_pp)),
+           prop_pp = n_pp/pp_num)
+  
+  pp_loc<-unique(pp_prop[which(pp_prop$prop_pp == max(pp_prop$prop_pp)), "ISO3"])
+  
+  max_sed<-max(sub$prop_sed,na.rm = T)
+  maj_sed<-unique(sub[which(sub$prop_sed == max_sed), "ISO3"])
+  max_bas<-max(sub$prop_basin,na.rm = T)
+  maj_prop<-unique(sub[which(sub$prop_basin == max_bas), "ISO3"])
+  n_iso3 <-length(unique(sub$ISO3))
+  
+  done<-pp_prop %>% 
+    dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean, area_km2, b_area_km2, iso3_b_km2, prop_basin, n, total_sed, prop_sed, HYRIV_I, ds_m3_p, n_pp, total_pp, prop_pp) %>% 
+    mutate(pp_iso3 = as.character(pp_loc),
+           max_sed_iso3 = maj_sed,
+           max_prop_bas_iso3 = maj_prop,
+           n_iso3 = n_iso3) 
+  
+  all<-rbind(all, done)
+  
+  write.csv(all, here(paste0("output_data/Transboundary/Terrestrial_transboundary_",name2,".csv")))
+  }
+}
+```
+
+```{r}
+pbmclapply(sub_files, land_trans_sed, mc.cores = length(sub_files), mc.style = "ETA")
+```
+
+```{r}
+test<-read.csv(here("output_data/Transboundary/Terrestrial_transboundary_Asia.csv"))
+test<-read.csv(here("output_data/Transboundary/Terrestrial_transboundary_Africa.csv"))
+```
+
+```{r}
+test<- all %>% 
+  filter(pp_iso3 != max_sed_iso3)
+
+length(unique(test$MAIN_BAS))
+length(unique(test$ISO3))
+```
+
+```{r}
+test2<- all %>% 
+  filter(max_sed_iso3 != max_prop_bas_iso3)
+
+length(unique(test2$MAIN_BAS))
+length(unique(test2$ISO3))
+```
+
+
+
+```{r}
+ggplot(sub_sed_bas_pp, aes(x = as.factor(MAIN_BAS), y = prop_sed, fill = ISO3)) +
+  geom_bar(stat = "identity", position = "stack") +
+  ylim(c(0,1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 1)) 
+```
+```{r}
+ggplot(all, aes(x = prop_basin, y = prop_sed, color = as.factor(ISO3))) +
+  geom_point() 
+```
+
