@@ -44,6 +44,7 @@ t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
 #st_write(gadm_area, here("output_data/GADM36/gadm36_dissolve_area.shp"))
 
 gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>% 
+  st_make_valid() %>% 
   st_set_crs(t_crs)
 
 ```
@@ -51,10 +52,7 @@ gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>%
 ## Basins
 
 ```{r}
-basins<-st_read(here("output_data/Basins/Basins_lv8_mainbasin.shp"))
-  
-basins_area<- basins %>% 
-  st_transform(., crs = t_crs) %>% 
+basins_area<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
   st_make_valid() %>% 
   mutate(b_area_km2 = as.numeric(st_area(.))*1e-6)
 ```
@@ -112,25 +110,3 @@ pbmclapply(cont, iso3_basin, mc.cores = 7, mc.style = "ETA")
 ```
 
 
-
-# Calculate sediment proportions
-
-
-# Pourpoints
-
-Determine if most sediment comes from same country as pourpoint is located or different?
-
-```{r}
-pp
-```
-
-
-# Test results/figures
-
-## Number of countries in each basin
-
-```{r}
-
-```
-
-# Stacked bar chart of proportion of countries in each basin
