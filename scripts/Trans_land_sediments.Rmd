@@ -140,38 +140,5 @@ for(i in 1:length(bas)){
 pbmclapply(sub_files, land_trans_sed, mc.cores = length(sub_files), mc.style = "ETA")
 ```
 
-```{r}
-test<-read.csv(here("output_data/Transboundary/Terrestrial_transboundary_Asia.csv"))
-test<-read.csv(here("output_data/Transboundary/Terrestrial_transboundary_Africa.csv"))
-```
 
-```{r}
-test<- all %>% 
-  filter(pp_iso3 != max_sed_iso3)
-
-length(unique(test$MAIN_BAS))
-length(unique(test$ISO3))
-```
-
-```{r}
-test2<- all %>% 
-  filter(max_sed_iso3 != max_prop_bas_iso3)
-
-length(unique(test2$MAIN_BAS))
-length(unique(test2$ISO3))
-```
-
-
-
-```{r}
-ggplot(sub_sed_bas_pp, aes(x = as.factor(MAIN_BAS), y = prop_sed, fill = ISO3)) +
-  geom_bar(stat = "identity", position = "stack") +
-  ylim(c(0,1)) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 1)) 
-```
-```{r}
-ggplot(all, aes(x = prop_basin, y = prop_sed, color = as.factor(ISO3))) +
-  geom_point() 
-```
 
