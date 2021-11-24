@@ -1,0 +1,96 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "19/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(countrycode)
+```
+
+# How many watersheds are transboundary globally?
+
+```{r}
+list_prop_basin<-list.files(here("output_data"), pattern = "Prop_basin_iso3", full.names = TRUE)
+
+sub_prop_basin<-list_prop_basin[grep(list_prop_basin, pattern = ".csv")] 
+
+dat <- 
+  do.call(rbind,
+          lapply(sub_prop_basin, read.csv))
+
+```
+
+```{r}
+#Count number of countries in each watershed
+iso3_basins<-dat %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(n_iso3 = length(unique(ISO3))) 
+```
+
+# Number of watersheds/countries
+
+```{r}
+# How many basins were assessed
+length(unique(iso3_basins$MAIN_BAS))
+
+# How many are transboundary
+length(which(iso3_basins$n_iso3>1))
+
+trans_basins<-iso3_basins %>% 
+  filter(n_iso3 >1)
+
+# Proportion of transboundary
+length(which(iso3_basins$n_iso3>1))/length(unique(iso3_basins$MAIN_BAS))
+```
+
+
+```{r}
+#Transboundary by continent
+cont_basins<-dat %>% 
+  group_by(Continent) %>% 
+  summarise(n_basins = length(unique(MAIN_BAS)))
+
+cont_trans_basins<-dat %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
+  group_by(Continent) %>% 
+  summarise(n_trans = length(unique(MAIN_BAS)))
+
+cont<-full_join(cont_basins, cont_trans_basins) %>% 
+  mutate(prop_trans = n_trans/n_basins)
+
+cont
+```
+
+
+
+```{r}
+iso3_cont_basins<-dat %>% 
+  group_by(ISO3, Continent) %>% 
+  summarise(n_basins = length(unique(MAIN_BAS)))
+
+iso3_trans_basins<-dat %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
+  group_by(ISO3, Continent) %>% 
+  summarise(n_trans = length(unique(MAIN_BAS)))
+
+iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>% 
+  mutate(prop_trans = n_trans/n_basins,
+         Country = countrycode(ISO3, "iso3c", "country.name"))
+```
+
+# Sediment export
+
+```{r}
+
+```
+
+
