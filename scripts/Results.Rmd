@@ -87,10 +87,89 @@ iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>%
          Country = countrycode(ISO3, "iso3c", "country.name"))
 ```
 
+```{r}
+# Number of countries in analysis
+length(unique(iso3_df$ISO3))
+
+# Number of countries with more than 1 basin
+length(which(iso3_df$n_basins>1))
+
+# Number of countries with transboundary basins
+length(which(iso3_df$n_trans>0))
+```
+
 # Sediment export
 
 ```{r}
+# Total sediment exported
+sed_moll<-raster(here("raw_data/Sediment/sediment_export_global_moll.tif"))
+
+total_sed<-cellStats(sed_moll, "sum")
+
+total_sed<-24849341974
+
+# unit is tonnes/ha/yr
+#1 Mt = 1000000 t
+
+#Estimated ha of global basins = 13511831300
+
+total_sed_mt<-total_sed/1000000 #Megaton
+```
+
+
+```{r}
+list_sed_basin<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial_transboundary_", full.names = TRUE)
+
+sed_dat <- 
+  do.call(rbind,
+          lapply(list_sed_basin, read.csv))
 
 ```
 
+```{r}
+# Total sediment export, what units? What does this layer represent?
+sum(sed_dat$sed_sum)
+
+# Proportion of transboundary sed
+sum(sed_dat$sed_sum)/total_sed
+```
+
+```{r}
+sub_sed_dat<-sed_dat %>% 
+  filter(pp_iso3 != max_sed_iso3)
+
+test<-sub_sed_dat %>% 
+  filter(pp_iso3 %in% c("c(\"IDN\", \"MYS\")", "c(\"IRN\", \"PAK\")","c(\"CRI\", \"NIC\")","c(\"PRI\", \"VIR\")"))
+
+sub_sed_dat2<-sub_sed_dat %>% 
+  filter(!pp_iso3 %in% c("c(\"IDN\", \"MYS\")", "c(\"IRN\", \"PAK\")","c(\"CRI\", \"NIC\")","c(\"PRI\", \"VIR\")"))
+
+# Main basins with mismatch between country with max sediment export and country with pourpoint
+length(unique(sub_sed_dat2$MAIN_BAS))
+
+# Watersheds with equal proportion of pourpoints
+length(unique(test$MAIN_BAS))
+```
+
+```{r}
+# Basins where >90% of sediment is produced in a different country than the pourpoint
+prop_sed<-sub_sed_dat2 %>% 
+  filter(prop_sed>0.9)
+
+length(unique(prop_sed$MAIN_BAS))
+```
+
+```{r}
+
+length(which(sub_sed_dat2$n_iso3>1))
+```
+
+```{r}
+test<-sub_sed_dat2 %>% 
+  filter(!duplicated(MAIN_BAS))
+```
+
+```{r}
+table(test$Continent)
+```
 
