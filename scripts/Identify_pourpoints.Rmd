@@ -1,0 +1,65 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "25/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(sf)
+library(pbmcapply)
+library(tidyverse)
+library(lwgeom)
+
+t_crs<-"+proj=moll"
+
+```
+
+
+# Rivers
+
+```{r}
+#Download and upzip RiverAtlas
+#https://figshare.com/articles/dataset/HydroATLAS_version_1_0/9890531
+```
+
+```{r}
+list_rivers<-list.files(here("raw_data/Rivers/RiverATLAS_v10_shp"), pattern = "shp", full.names = T)
+```
+
+```{r}
+id_pp<-function(x){
+  
+  riv<-st_read(x)
+  
+  name<-str_remove(x, here("raw_data/Rivers/RiverATLAS_v10_shp/RiverATLAS_v10_"))
+  name2<-str_remove(name, ".shp")
+  
+  sub_riv <- riv %>% 
+  dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, dis_m3_pyr, ENDORHEIC) %>% 
+  dplyr::filter(NEXT_DOWN == 0,
+                ENDORHEIC != 1) %>% 
+  st_cast(., "LINESTRING") %>% 
+  filter(!duplicated(HYRIV_ID))
+  
+  pnts<-st_endpoint(sub_riv) 
+  
+  pnts2<-st_as_sf(pnts)
+
+  data_per_river<-cbind(pnts2, sub_riv) %>% 
+    rename(riv_dis_m3_pyr = dis_m3_pyr) %>% 
+    st_transform(., t_crs)
+  
+  st_write(data_per_river, paste0(here("output_data/Pourpoints/"), "Pourpoints_",name2, ".shp"), delete_layer =  TRUE)
+  
+}
+```
+
+```{r}
+pbmclapply(list_rivers, id_pp, mc.cores = 10, mc.style = "ETA")
+```
