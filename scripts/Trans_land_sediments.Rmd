@@ -38,8 +38,17 @@ shp_files<-list.files(path = here("output_data/Sediment/"), pattern = ".shp", fu
 # Pourpoint data
 
 ```{r}
-pp<-st_read(here("raw_data/Pourpoints/pour_points_all.shp")) %>% 
-  st_transform(., crs = t_crs)
+# Pourpoints for coral reefs only
+#pp<-st_read(here("raw_data/Pourpoints/pour_points_all.shp")) #%>% 
+#  st_transform(., crs = t_crs)
+
+
+# All pourpoints
+pp_list<-list.files(here("output_data/Pourpoints/"), pattern = ".shp", full.names = T)
+
+pp<-
+  do.call(rbind,
+          lapply(pp_list, st_read))
 ```
 
 # Calculate terrestrial transboundary sediment within each continent
@@ -123,7 +132,7 @@ for(i in 1:length(bas)){
   n_iso3 <-length(unique(sub$ISO3))
   
   done<-pp_prop %>% 
-    dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean, area_km2, b_area_km2, iso3_b_km2, prop_basin, n, total_sed, prop_sed, HYRIV_I, ds_m3_p, n_pp, total_pp, prop_pp) %>% 
+    dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean, area_km2, b_area_km2, iso3_b_km2, prop_basin, n, total_sed, prop_sed, HYRIV_I, rv_d_3_, n_pp, total_pp, prop_pp) %>% 
     mutate(pp_iso3 = as.character(pp_loc),
            max_sed_iso3 = maj_sed,
            max_prop_bas_iso3 = maj_prop,
@@ -141,4 +150,11 @@ pbmclapply(sub_files, land_trans_sed, mc.cores = length(sub_files), mc.style = "
 ```
 
 
+```{r}
+# Test to make sure it seems like it is working correctly
+#test<-all %>% 
+#  filter(pp_iso3 != max_sed_iso3)
+
+#length(unique(test$MAIN_BAS))
+```
 
