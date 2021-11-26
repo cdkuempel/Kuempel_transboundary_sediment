@@ -14,6 +14,7 @@ library(here)
 library(tidyverse)
 library(data.table)
 library(countrycode)
+library(raster)
 ```
 
 # How many watersheds are transboundary globally?
@@ -102,9 +103,9 @@ length(which(iso3_df$n_trans>0))
 
 ```{r}
 # Total sediment exported
-sed_moll<-raster(here("raw_data/Sediment/sediment_export_global_moll.tif"))
+#sed_moll<-raster(here("raw_data/Sediment/sediment_export_global_moll.tif"))
 
-total_sed<-cellStats(sed_moll, "sum")
+#total_sed<-cellStats(sed_moll, "sum")
 
 total_sed<-24849341974
 
@@ -114,35 +115,110 @@ total_sed<-24849341974
 #Estimated ha of global basins = 13511831300
 
 total_sed_mt<-total_sed/1000000 #Megaton
+
+total_sed_mt
 ```
 
+# Sediment from all transboundary basins
 
 ```{r}
-list_sed_basin<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial_transboundary_", full.names = TRUE)
+list_sed_basin<-list.files(here("output_data/Sediment"), pattern = ".shp", full.names = T)
+
+#list_sed_basin<-list.files(here("output_data/Transboundary"), pattern = #"Terrestrial_transboundary_", full.names = TRUE)
 
 sed_dat <- 
   do.call(rbind,
-          lapply(list_sed_basin, read.csv))
+          lapply(list_sed_basin, st_read))
+
+sub_dat<-dat %>% 
+  dplyr::select(MAIN_BAS, n)
+
+sed_dat2<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  full_join(., sub_dat) %>% 
+  filter(n>1)
+
+trans_sed_sum<-sed_dat2 %>% 
+  group_by(ISO3, Continent, MAIN_BAS) %>% 
+  filter(!duplicated(sed_sum))
 
 ```
 
 ```{r}
-# Total sediment export, what units? What does this layer represent?
-sum(sed_dat$sed_sum)
+# Total sediment export? What does this layer represent?
+sum(trans_sed_sum$sed_sum, na.rm = T)/1000000 #Megaton
 
 # Proportion of transboundary sed
-sum(sed_dat$sed_sum)/total_sed
+sum(trans_sed_sum$sed_sum)/total_sed
+
+# Number of basins
+length(unique(sed_dat$MAIN_BAS))
+```
+
+# Transboundary, cryptoheric watersheds
+
+```{r}
+list_crypt_sed_basin<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial_transboundary_", full.names = TRUE)
+
+crypt_sed_dat <- 
+  do.call(rbind,
+          lapply(list_crypt_sed_basin, read.csv))
+
+trans_crypt_sed_sum<-crypt_sed_dat %>% 
+  group_by(ISO3, Continent, MAIN_BAS) %>% 
+  filter(!duplicated(sed_sum))
 ```
 
 ```{r}
-sub_sed_dat<-sed_dat %>% 
+#Number of transboundary cryptoheric basins
+
+length(unique(trans_crypt_sed_sum$MAIN_BAS))
+
+# Proportion of transboundary that are also cryptoheric
+length(unique(trans_crypt_sed_sum$MAIN_BAS))/length(which(iso3_basins$n_iso3>1))
+
+# Breakdown by Continent
+sub<-trans_crypt_sed_sum %>% 
+  ungroup() %>% 
+  dplyr::select(MAIN_BAS, Continent) %>% 
+  filter(!duplicated(MAIN_BAS))
+
+table(sub$Continent)/length(unique(trans_crypt_sed_sum$MAIN_BAS))
+
+```
+```{r}
+# Total sediment export? What does this layer represent?
+sum(trans_crypt_sed_sum$sed_sum, na.rm = T)/1000000 #Megaton
+
+# Proportion of transboundary sed
+sum(trans_crypt_sed_sum$sed_sum)/total_sed
+
+```
+
+```{r}
+iso3_crypt_trans_basins<- trans_crypt_sed_sum %>% 
+  group_by(ISO3, Continent) %>% 
+  summarise(n_crypt_basins = length(unique(MAIN_BAS)))
+
+iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>%
+  full_join(., iso3_crypt_trans_basins) %>% 
+  mutate(prop_trans = n_trans/n_basins,
+         prop_crypt = n_crypt_basins/n_basins,
+         prop_trans_crypt = n_crypt_basins/n_trans,
+         Country = countrycode(ISO3, "iso3c", "country.name"))
+```
+
+
+```{r}
+sub_sed_dat<-crypt_sed_dat %>% 
   filter(pp_iso3 != max_sed_iso3)
 
 test<-sub_sed_dat %>% 
-  filter(pp_iso3 %in% c("c(\"IDN\", \"MYS\")", "c(\"IRN\", \"PAK\")","c(\"CRI\", \"NIC\")","c(\"PRI\", \"VIR\")"))
+  filter(pp_iso3 %in% c("c(\"GIN\", \"SLE\")", "c(\"GMB\", \"SEN\")",  "c(\"IRN\", \"PAK\")", "c(\"IDN\", \"MYS\")", "c(\"CRI\", \"NIC\")", "c(\"PRI\", \"VIR\")", "c(\"BRA\", \"URY\")", "c(\"CHL\", \"PER\")"))
 
 sub_sed_dat2<-sub_sed_dat %>% 
-  filter(!pp_iso3 %in% c("c(\"IDN\", \"MYS\")", "c(\"IRN\", \"PAK\")","c(\"CRI\", \"NIC\")","c(\"PRI\", \"VIR\")"))
+  filter(!pp_iso3 %in% c("c(\"GIN\", \"SLE\")", "c(\"GMB\", \"SEN\")",  "c(\"IRN\", \"PAK\")", "c(\"IDN\", \"MYS\")", "c(\"CRI\", \"NIC\")", "c(\"PRI\", \"VIR\")", "c(\"BRA\", \"URY\")", "c(\"CHL\", \"PER\")"))
 
 # Main basins with mismatch between country with max sediment export and country with pourpoint
 length(unique(sub_sed_dat2$MAIN_BAS))
@@ -159,17 +235,29 @@ prop_sed<-sub_sed_dat2 %>%
 length(unique(prop_sed$MAIN_BAS))
 ```
 
-```{r}
 
-length(which(sub_sed_dat2$n_iso3>1))
+```{r}
+table(test$Continent)/length(unique(sub_sed_dat2$MAIN_BAS))
+```
+
+# Transboundary coral reef sediments
+
+```{r}
+reef_pp<-st_read(here("raw_data/Pourpoints/pour_points_all.shp")) 
+
+reef_sed<- trans_crypt_sed_sum %>% 
+  filter(HYRIV_I %in% reef_pp$HYRIV_I)
 ```
 
 ```{r}
-test<-sub_sed_dat2 %>% 
-  filter(!duplicated(MAIN_BAS))
+length(unique(reef_sed$MAIN_BAS))
 ```
 
 ```{r}
-table(test$Continent)
+sum(reef_sed$sed_sum, na.rm = T)/sum(trans_crypt_sed_sum$sed_sum, na.rm = T)
+
+sum(reef_sed$sed_sum, na.rm = T)/sum(trans_sed_sum$sed_sum, na.rm = T)
+
+sum(reef_sed$sed_sum, na.rm = T)/total_sed
 ```
 
