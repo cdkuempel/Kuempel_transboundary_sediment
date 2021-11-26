@@ -78,9 +78,16 @@ land_trans_sed<-function(x){
   full_join(., total_sed, by = "MAIN_BAS") %>% 
   mutate(prop_sed = sed_sum/total_sed)
   
-  sed_bas_pp<-st_join(sed_basin, pp) %>% 
-  filter(!is.na(ISO3) == T)
+  # Find indices of nearest nodes.
+  nearest_nodes = st_nearest_feature(pp, sed_basin)
 
+  # Snap geometries of POIs to the network.
+  snapped_pois <- pp %>%
+    st_set_geometry(st_geometry(pp)[nearest_nodes])
+  
+  sed_bas_pp<-st_join(sed_basin, snapped_pois) %>% 
+  filter(!is.na(ISO3) == T)
+  
   pp_basins<-sed_bas_pp %>% 
     filter(!is.na(HYRIV_I) == T)
 
@@ -140,7 +147,7 @@ for(i in 1:length(bas)){
   
   all<-rbind(all, done)
   
-  write.csv(all, here(paste0("output_data/Transboundary/Terrestrial_transboundary_",name2,".csv")))
+  #write.csv(all, here(paste0("output_data/Transboundary/Terrestrial_transboundary_",name2,".csv")))
   }
 }
 ```
@@ -157,4 +164,5 @@ pbmclapply(sub_files, land_trans_sed, mc.cores = length(sub_files), mc.style = "
 
 #length(unique(test$MAIN_BAS))
 ```
+
 
