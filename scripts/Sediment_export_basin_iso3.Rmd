@@ -46,8 +46,6 @@ sed_moll<-raster(here("raw_data/Sediment/sediment_export_global_moll.tif"))
 
 # Read in basin/country overlap
 
-Try with Africa
-
 ```{r}
 basin_iso3_files<-list.files(here("output_data"), pattern = ".shp", full.names = T)
 
