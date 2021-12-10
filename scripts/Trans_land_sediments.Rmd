@@ -44,11 +44,13 @@ shp_files<-list.files(path = here("output_data/Sediment/"), pattern = ".shp", fu
 
 
 # All pourpoints
-pp_list<-list.files(here("output_data/Pourpoints/"), pattern = ".shp", full.names = T)
+pp_list<-list.files(here("output_data/Pourpoints/"), pattern = "Pourpoints", full.names = T)
+
+sub_pp_list<-pp_list[grep(pp_list, pattern = ".shp")]
 
 pp<-
   do.call(rbind,
-          lapply(pp_list, st_read))
+          lapply(sub_pp_list, st_read))
 ```
 
 # Calculate terrestrial transboundary sediment within each continent
@@ -79,32 +81,35 @@ land_trans_sed<-function(x){
   mutate(prop_sed = sed_sum/total_sed)
   
   # Find indices of nearest nodes.
-  nearest_nodes = st_nearest_feature(pp, sed_basin)
+  #nearest_nodes = st_nearest_feature(pp, sed_basin)
+  sed_bas_pp<-st_join(pp, sed_basin)
+  
+  sed_bas_pp2<-sed_bas_pp %>% 
+    filter(!is.na(total_sed) == T)
 
   # Snap geometries of POIs to the network.
-  snapped_pois <- pp %>%
-    st_set_geometry(st_geometry(pp)[nearest_nodes])
+#snapped_pois <- pp %>%
+#    st_set_geometry(st_geometry(pp)[nearest_nodes])
   
-  sed_bas_pp<-st_join(sed_basin, snapped_pois) %>% 
-  filter(!is.na(ISO3) == T)
+ # sed_bas_pp<-st_join(sed_basin, snapped_pois) %>% 
+#  filter(!is.na(ISO3) == T)
   
-  pp_basins<-sed_bas_pp %>% 
+  pp_basins<-sed_bas_pp2 %>% 
     filter(!is.na(HYRIV_I) == T)
-
-  sub_sed_bas_pp<-sed_bas_pp %>% 
-    filter(MAIN_BAS %in% pp_basins$MAIN_BAS)
   
   total_prop<-sed_basin %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
   group_by(MAIN_BAS) %>% 
   summarise(total_prop = sum(prop_sed, na.rm = T))
   
-bas<-unique(sub_sed_bas_pp$MAIN_BAS)
+  bas<-unique(pp_basins$MAIN_BAS)
 
 all<-c()
 
 for(i in 1:length(bas)){
   print(i)
-  sub<-sub_sed_bas_pp %>% 
+  sub<-pp_basins %>% 
     filter(MAIN_BAS == bas[i]) %>% 
     as.data.frame() %>% 
     dplyr::select(-geometry)
@@ -130,7 +135,26 @@ for(i in 1:length(bas)){
            n_pp = ifelse(is.na(HYRIV_I) == T, 0, as.numeric(n_pp)),
            prop_pp = n_pp/pp_num)
   
+  total_discharge <- sub %>% 
+    group_by(MAIN_BAS) %>% 
+    summarise(total_discharge = sum(rv_d_3_, na.rm = T))
+  
+  sed_pp_discharge<- sub %>% 
+    full_join(., total_discharge) %>% 
+    mutate(prop_dis = rv_d_3_/total_discharge,
+           pp_dis = prop_dis * total_sed)
+  
   pp_loc<-unique(pp_prop[which(pp_prop$prop_pp == max(pp_prop$prop_pp)), "ISO3"])
+  
+  maj_dis<-sed_pp_discharge %>% 
+    group_by(ISO3, MAIN_BAS) %>% 
+    summarise(iso3_pp_dis = sum(pp_dis, na.rm = T)) %>% 
+    mutate(iso3_pp_dis_prop = iso3_pp_dis/unique(sub$total_sed))
+  
+  maj_dis_loc<-maj_dis %>% 
+    filter(iso3_pp_dis_prop == max(maj_dis$iso3_pp_dis_prop)) %>% 
+    dplyr::select(ISO3) %>% 
+    as.character()
   
   max_sed<-max(sub$prop_sed,na.rm = T)
   maj_sed<-unique(sub[which(sub$prop_sed == max_sed), "ISO3"])
@@ -139,18 +163,23 @@ for(i in 1:length(bas)){
   n_iso3 <-length(unique(sub$ISO3))
   
   done<-pp_prop %>% 
-    dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean, area_km2, b_area_km2, iso3_b_km2, prop_basin, n, total_sed, prop_sed, HYRIV_I, rv_d_3_, n_pp, total_pp, prop_pp) %>% 
+    full_join(., maj_dis) %>% 
+    dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean, area_km2, b_area_km2, iso3_b_km2, prop_basin, n, total_sed, prop_sed, HYRIV_I, rv_d_3_, ENDORHE, n_pp, total_pp, prop_pp, iso3_pp_dis, iso3_pp_dis_prop) %>% 
     mutate(pp_iso3 = as.character(pp_loc),
+           max_pp_dis_iso3 = maj_dis_loc,
            max_sed_iso3 = maj_sed,
            max_prop_bas_iso3 = maj_prop,
            n_iso3 = n_iso3) 
   
   all<-rbind(all, done)
-  
-  #write.csv(all, here(paste0("output_data/Transboundary/Terrestrial_transboundary_",name2,".csv")))
-  }
+
 }
+
+write.csv(all, here(paste0("output_data/Transboundary/Terrestrial_transboundary_",name2,".csv")))
+}
+
 ```
+
 
 ```{r}
 pbmclapply(sub_files, land_trans_sed, mc.cores = length(sub_files), mc.style = "ETA")
@@ -158,11 +187,14 @@ pbmclapply(sub_files, land_trans_sed, mc.cores = length(sub_files), mc.style = "
 
 
 ```{r}
-# Test to make sure it seems like it is working correctly
-#test<-all %>% 
-#  filter(pp_iso3 != max_sed_iso3)
+#Test to make sure it seems like it is working correctly
+test<-list.files(here(paste0("output_data/Transboundary/")), pattern = "transboundary")
+test2<- read.csv(here(paste0("output_data/Transboundary/Terrestrial_transboundary_South America.csv"))) %>% 
+  filter(max_pp_dis_iso3 != max_sed_iso3)
 
-#length(unique(test$MAIN_BAS))
+length(unique(test2$MAIN_BAS))
+
+11+8+27+6+11
 ```
 
 
