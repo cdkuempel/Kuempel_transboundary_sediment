@@ -1,0 +1,65 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "10/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+
+t_crs<-"+proj=moll"
+
+```
+
+Code to try to identify transboundary rivers
+
+# Load data
+
+```{r}
+list_rivers<-list.files(here("raw_data/Rivers/RiverATLAS_v10_shp"), pattern = "shp", full.names = T)
+
+rivers<-st_read(list_rivers[1]) %>% 
+  st_transform(., t_crs)
+```
+
+```{r}
+basin_iso3_files<-list.files(here("output_data"), pattern = ".shp", full.names = T)
+
+# Remove Antarctica bc it doesn't have sediment data
+
+basin_iso3_files<-basin_iso3_files[-2]
+
+basin_iso3<-st_read(basin_iso3_files[1]) %>% 
+  st_transform(., t_crs)
+```
+# Intersect basins with rivers
+
+```{r}
+trans_rivers<-st_intersection(basin_iso3, rivers)
+```
+Function to identify main rivers that cross more than one country
+
+```{r}
+sub_trans_rivers<-trans_rivers %>% 
+  dplyr::select(ISO3, Country, area_km2, MAIN_BAS, b_area_km2, iso3_b_km2, prop_basin, Continent, HYRIV_ID, NEXT_DOWN, MAIN_RIV, ENDORHEIC, dis_m3_pyr)
+```
+
+
+```{r}
+test<- sub_trans_rivers %>% group_by(MAIN_RIV) %>% summarise(n_iso3=n_distinct(ISO3))
+
+sub_test<-test %>% 
+  filter(n_iso3>1)
+
+write.csv(sub_test, here("output_data/Rivers/Transboundary_rivers.csv"))
+```
+
+
+
