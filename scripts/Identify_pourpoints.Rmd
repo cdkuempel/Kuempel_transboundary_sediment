@@ -24,11 +24,6 @@ t_crs<-"+proj=moll"
 # Rivers
 
 ```{r}
-#Download and upzip RiverAtlas
-#https://figshare.com/articles/dataset/HydroATLAS_version_1_0/9890531
-```
-
-```{r}
 list_rivers<-list.files(here("raw_data/Rivers/RiverATLAS_v10_shp"), pattern = "shp", full.names = T)
 ```
 
@@ -43,8 +38,8 @@ id_pp<-function(x){
   
   sub_riv <- riv %>% 
   dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, dis_m3_pyr, ENDORHEIC) %>% 
-  dplyr::filter(NEXT_DOWN == 0,
-                ENDORHEIC != 1) %>% 
+  dplyr::filter(NEXT_DOWN == 0) %>% 
+              #  ENDORHEIC != 1) %>% 
   st_cast(., "LINESTRING") %>% 
   filter(!duplicated(HYRIV_ID))
   
