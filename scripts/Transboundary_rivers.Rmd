@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(sf)
 library(here)
+library(pbmcapply)
 
 t_crs<-"+proj=moll"
 
@@ -24,9 +25,6 @@ Code to try to identify transboundary rivers
 
 ```{r}
 list_rivers<-list.files(here("raw_data/Rivers/RiverATLAS_v10_shp"), pattern = "shp", full.names = T)
-
-rivers<-st_read(list_rivers[1]) %>% 
-  st_transform(., t_crs)
 ```
 
 ```{r}
@@ -35,31 +33,69 @@ basin_iso3_files<-list.files(here("output_data"), pattern = ".shp", full.names =
 # Remove Antarctica bc it doesn't have sediment data
 
 basin_iso3_files<-basin_iso3_files[-2]
+```
 
-basin_iso3<-st_read(basin_iso3_files[1]) %>% 
+
+# Funciton to identify transboundary rivers
+```{r}
+trans_rivers<-function(x){
+  
+  basin_iso3<-st_read(x) %>% 
   st_transform(., t_crs)
-```
-# Intersect basins with rivers
+  
+ name<-str_remove(x, here("output_data/Prop_basin_iso3_"))
+  
+ name2<-str_remove(name, ".shp")
+ 
+ # Read in river shapefile
+ 
+ match<-case_when(name2 == "Africa" ~ "af",
+                  name2 == "Asia" ~ "as",
+                  name2 == "Europe" ~ c("eu", "gr"),
+                  name2 == "North America" ~ "na",
+                  name2 == "Oceania" ~ c("si", "au"),
+                  name2 == "South America" ~ "sa")
+ 
+ match_river<-list_rivers[grep(paste(match, collapse="|"), list_rivers)]
+ 
+ # Read in river data
+ 
+ rivers<-
+  do.call(rbind,
+          lapply(match_river, st_read)) %>% 
+   st_transform(., t_crs)
 
-```{r}
-trans_rivers<-st_intersection(basin_iso3, rivers)
-```
-Function to identify main rivers that cross more than one country
-
-```{r}
-sub_trans_rivers<-trans_rivers %>% 
-  dplyr::select(ISO3, Country, area_km2, MAIN_BAS, b_area_km2, iso3_b_km2, prop_basin, Continent, HYRIV_ID, NEXT_DOWN, MAIN_RIV, ENDORHEIC, dis_m3_pyr)
-```
-
-
-```{r}
+  
+  # Intersect basins with rivers
+  
+  trans_rivers<-st_intersection(basin_iso3, rivers)
+  
+  sub_trans_rivers<-trans_rivers %>% 
+    as.data.frame() %>% 
+  dplyr::select(ISO3, Country, area_km2, MAIN_BAS, b_area_km2, iso3_b_km2, prop_basin, Continent, HYRIV_ID, NEXT_DOWN, MAIN_RIV, ENDORHEIC, dis_m3_pyr) 
+  
 test<- sub_trans_rivers %>% group_by(MAIN_RIV) %>% summarise(n_iso3=n_distinct(ISO3))
 
 sub_test<-test %>% 
   filter(n_iso3>1)
 
-write.csv(sub_test, here("output_data/Rivers/Transboundary_rivers.csv"))
+done<-full_join(sub_trans_rivers, sub_test)
+
+write.csv(done, here(paste0("output_data/Rivers/Transboundary_rivers_",name2,".csv")))
+}
+
 ```
+
+# Run function
+
+```{r}
+pbmclapply(basin_iso3_files, trans_rivers, mc.cores = 6, mc.style = "ETA")
+```
+
+
+
+
+
 
 
 
