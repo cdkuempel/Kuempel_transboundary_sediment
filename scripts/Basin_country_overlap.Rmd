@@ -18,7 +18,7 @@ library(countrycode)
 library(parallel)
 library(pbmcapply)
 
-t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+t_crs<-'ESRI:54009'
 ```
 
 # Load data
@@ -45,7 +45,7 @@ t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
 
 gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>% 
   st_make_valid() %>% 
-  st_set_crs(t_crs)
+  st_transform(., t_crs)
 
 ```
 

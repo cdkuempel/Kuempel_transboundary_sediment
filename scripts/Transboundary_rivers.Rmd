@@ -15,7 +15,7 @@ library(sf)
 library(here)
 library(pbmcapply)
 
-t_crs<-"+proj=moll"
+t_crs<-'ESRI:54009'
 
 ```
 
