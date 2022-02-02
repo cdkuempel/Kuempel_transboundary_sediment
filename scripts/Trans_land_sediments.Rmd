@@ -22,7 +22,7 @@ t_crs<-'ESRI:54009'
 
 # Description
 
-This code aims to subset the countries with transboundary basins, match this with sediment export data and pourpoint data
+This code subsets the countries with transboundary basins, match this with sediment export data and pourpoint data to be able to calculate transboundary terrestrial sediment export
 
 # Read in data
 
@@ -64,7 +64,7 @@ pp_basins<-st_join(pp, basins) %>%
 # Determine location of pourpoints
 
 ```{r}
-continents<-c("Africa", "Asia", "Europe", "North America", "Oceania", "South America")
+continents<-c("Asia", "Europe", "North America", "Oceania", "South America")
 ```
 
 # CHECK BASINS THAT HAVE n = 1 but proportion of basin <1
@@ -75,10 +75,10 @@ find_pp<-function(x){
    print(name2)
    
    match<-case_when(name2 == "Africa" ~ "af",
-                  name2 == "Asia" ~ "as",
-                  name2 == "Europe" ~ c("eu", "gr"),
+                  name2 == "Asia" ~ c("as"),
+                  name2 == "Europe" ~ c("eu", "gr", "si"),
                   name2 == "North America" ~ "na",
-                  name2 == "Oceania" ~ c("si", "au"),
+                  name2 == "Oceania" ~ c("au"),
                   name2 == "South America" ~ "sa")
  
   match_pp<-sub_pp_list[grep(paste(match, collapse="|"), sub_pp_list)]
@@ -90,8 +90,6 @@ find_pp<-function(x){
           lapply(match_pp, st_read)) %>% 
    st_transform(., t_crs)
  
- # Read in sediment data
- 
  # Match to sediment calculation shapefile for country
   sub_shp<-shp_files[grep(pattern = name2, shp_files)]
 
@@ -100,21 +98,29 @@ find_pp<-function(x){
   dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean) %>% 
     st_transform(., t_crs)
    
+  # Join pourpoint file to sediment file by spatial location
    pp_loc<-st_join(pp_cont, sed_dat) 
+   
+   # Remove pourpoints without country info
    
    pp_loc_done<-pp_loc %>% 
      filter(!is.na(ISO3) == T) %>% 
      as.data.frame() %>% 
      dplyr::select(-geometry, -sed_sum, -sed_mean)
    
+   # Identify pourpoints that did not match up spatially
    pp_mis<-pp_cont %>% 
      filter(!HYRIV_I %in% pp_loc_done$HYRIV_I)
    
-   #riv_test<-pp_mis %>% filter(HYRIV_I == 11137695)
+   # Africa - 3059 rivers don't have a location
+   
+   ########riv_test<-pp_mis %>% filter(HYRIV_I == 11137695)
+   
+   # Gap fill pourpoints missing location
    
    mis_df<-c()
    
-   # TRY ALL OF THESE TO CORRECT SPECIAL CASES
+   # AFRICA - TRY ALL OF THESE TO CORRECT SPECIAL CASES
    
   # i = 238 MAIN_BAS 1080034860 - small island so remove
    # i =  452 MAIN_BAS 1080034680 - small island so remove
@@ -135,7 +141,7 @@ find_pp<-function(x){
    #i = MAIN_BAS 1080020200
  
    for(i in 1:nrow(pp_mis)){
-     
+     print(i)
      pp1<-pp_mis[i,]
      
      nearest<-st_nearest_feature(pp1, sed_dat)
@@ -148,11 +154,14 @@ find_pp<-function(x){
      as.data.frame() %>% 
      dplyr::select(-geometry, -sed_sum, -sed_mean)
       
-      test<-left_join(pp_loc_mis, pp_basins, by = c("HYRIV_I", "NEXT_DO", "MAIN_RI", "rv_d_3_", "ENDORHE"))
+      test<-left_join(pp_loc_mis, pp_basins, by = c("HYRIV_I", "NEXT_DO", "MAIN_RI", "rv_d_3_", "ENDORHE")) 
+      
+      test<-test %>% 
+        mutate(MAIN_BAS.y = ifelse(is.na(MAIN_BAS.y) == T, test$MAIN_BAS.x, test$MAIN_BAS.y))
       
       if(test$MAIN_BAS.x != test$MAIN_BAS.y){
         pp_loc_mis<-pp_loc_mis %>% 
-          mutate(MAIN_BAS = test$MAIN_BAS.y)
+          mutate(MAIN_BAS = test$MAIN_BAS.y) 
         
         # Some don't exist in sed_dat because they are basins on small islands so we remove these
         sub_sed<-sed_dat %>% 
@@ -166,10 +175,47 @@ find_pp<-function(x){
       mis_df<-rbind(mis_df, pp_loc_mis)
    }
    
+   #i = 20487
    # We lose some PPs because we exclude those on small islands that are not included in the sediment calculations
+   
+   # We also lose some PPs because of mismatches in the modelled data
+   
    done<-rbind(pp_loc_done, mis_df)
-  write.csv(done, here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv")))
-
+   
+   # How many rivers still do not have basin/country pourpoint info?
+   test<- pp_loc %>% 
+     filter(!pp_loc$HYRIV_I %in% done$HYRIV_I)
+   
+    length(unique(test$HYRIV_I))
+   
+   # Africa - We still are missing 198 river pourpoint locations or 1.2% of rivers in the dataset
+   
+   # How many main basins don't have a river pourpoint?
+   test2<- sed_dat %>% 
+     filter(!sed_dat$MAIN_BAS %in% done$MAIN_BAS) %>% 
+     as.data.frame() %>% 
+     dplyr::select(-geometry)
+   
+   length(unique(test2$MAIN_BAS))
+   
+   test3<-test2 %>% 
+     filter(!is.na(sed_sum) == T,
+            sed_sum>0)
+   
+   length(unique(test3$MAIN_BAS))
+   
+  # Africa - 184 Main basins are in the sediment dataset but still don't have a river pourpoint, 4.7%
+  # Africa - 154 of these have some sediment discharge
+   
+   done2<-done %>% 
+     mutate(mis_bas =  length(unique(test2$MAIN_BAS)),
+            mis_bas_w_sed = length(unique(test3$MAIN_BAS)),
+            mis_pp = length(unique(test$HYRIV_I)),
+            total_mis_sed = sum(test3$sed_sum, na.rm = T))
+  
+   write.csv(done2, here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv")))
+   write.csv(test, here(paste0("output_data/Pourpoints/River_location_missing_", name2, ".csv")))
+   write.csv(test2, here(paste0("output_data/Pourpoints/Basin_pp_missing_", name2,".csv")))
   }
 ```
 
@@ -177,6 +223,71 @@ find_pp<-function(x){
 pbmclapply(continents, find_pp, mc.cores = length(continents), mc.style = "ETA")
 ```
 
+```{r}
+pp_location<-list.files(here("output_data/Pourpoints/"), pattern = "PP_location", full.names = T)
+
+pp_final<-
+  do.call(rbind,
+          lapply(pp_location, read.csv)) 
+
+try<-pp_final %>% 
+  filter(MAIN_BAS == 2080005720)
+```
+
+# Explore missing basins/rivers
+
+```{r}
+name2<-continents[[3]]
+done<-read.csv(here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv")))
+check_pp<-read.csv(here(paste0("output_data/Pourpoints/River_location_missing_", name2, ".csv")))
+check_basins<-read.csv(here(paste0("output_data/Pourpoints/Basin_pp_missing_", name2,".csv")))
+
+sub_shp<-shp_files[grep(pattern = name2, shp_files)]
+
+  # Read in sediment file
+  sed_dat<-st_read(sub_shp) %>% 
+  dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean) %>% 
+    st_transform(., t_crs)
+  
+  transboundary<-read.csv(here("output_data/Transboundary/Terrestrial_transboundary_Europe.csv"))
+  
+  prop<-read.csv(here("output_data/Prop_basin_iso3_Europe.csv"))
+  prop_europe<-prop %>% 
+    filter(Continent == "Europe")
+  
+  sub_check_basins<-check_basins %>% 
+    filter(MAIN_BAS %in% prop_europe$MAIN_BAS)
+  
+  test<-full_join(check_basins, prop_europe)
+  
+  
+```
+
+```{r}
+length(unique(check_basins$MAIN_BAS)) # Number of basins without pourpoint
+length(unique(check_pp$HYRIV_I)) # Number of rivers without pourpoint location
+length(unique(sed_dat$MAIN_BAS)) #Number of basins in sediment data
+
+length(unique(check_basins$MAIN_BAS))/length(unique(sed_dat$MAIN_BAS))
+
+some_sed<-check_basins %>% 
+  filter(sed_sum>0)
+
+length(unique(some_sed$MAIN_BAS))
+length(unique(some_sed$MAIN_BAS))/length(unique(sed_dat$MAIN_BAS))
+sum(some_sed$sed_sum, na.rm = T)
+```
+Europe 36% of basins are missing pourpoints, 30% that have sediment run off, missing 1519623331 of sediment
+
+Africa
+
+South America
+
+Asia
+
+Oceania
+
+North America
 # Calculate mismatches in sediment and pourpoint locations
 
 ```{r}
@@ -185,7 +296,7 @@ sub_pp_loc_files<-pp_loc_files[grep(pattern = ".csv", pp_loc_files)]
 ```
 
 ```{r}
-land_trans_sed<-function(x){
+# Testing the data to see which basins still don't have pourpoints
   name2<-x
   match_sed<-shp_files[grep(pattern = name2, shp_files)]
 
@@ -219,8 +330,9 @@ land_trans_sed<-function(x){
   
   sed_basin_loc<-full_join(sed_basin, pp_dat, by = c("MAIN_BAS", "Continent"))
   
-  #Check to make sure all basins have pp location data- should be 0
+  #Check to make sure all basins have pp location data
   length(which(is.na(sed_basin_loc$HYRIV_I) == T))
+  
   
   # Filter pp with no location
   test<-sed_basin_loc %>% filter(is.na(HYRIV_I) == T)
@@ -244,6 +356,10 @@ land_trans_sed<-function(x){
   
   length(unique(test5$MAIN_BAS))
   
+  xy<-test4 %>% 
+    filter(is.na(total_sed) == T | total_sed <= 0)
+    
+  
   #154 of these have some level of sedimentation
   
  dat<-read.csv("/home/kuempel/transboundary_sediment/output_data/Prop_basin_iso3_Africa.csv")
@@ -252,21 +368,18 @@ land_trans_sed<-function(x){
  
  # Need to figure out why these basins don't have pourpoints and if this is a problem - the ones I spot checked seem to be small coastal basins.
  
- # Transboundary basins withint pourpoints
+ # Transboundary basins without pourpoints
  # There is just 1 now.
  test7<-test6 %>% filter(n>1)
  
  length(unique(test7$MAIN_BAS))
  
- # That leave us with 6 main basins that are transboundary but don't have pourpoint location
-   
  # Join pp_dat to basins/pp to see where mismatches occur
  
  test8<-full_join(pp_dat, pp_basins, by = c("HYRIV_I", "NEXT_DO", "MAIN_RI", "rv_d_3_", "ENDORHE"))
  
  test9 <- test8 %>% filter(MAIN_BAS.x != MAIN_BAS.y) 
  
- # NEED TO MANUALLY FIX THESE 16 for Africa
  
  
  
@@ -295,7 +408,7 @@ land_trans_sed<-function(x){
   dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean) %>% 
     st_transform(., t_crs)
   
-  # Join sediment data to proportion o basin data
+  # Join sediment data to proportion of basin data
   sed_basin<-right_join(sed_dat, dat, by = c("MAIN_BAS", "Country", "ISO3", "Continent")) 
 
   # Calculate total sediment by main basin
@@ -343,12 +456,9 @@ land_trans_sed<-function(x){
   diff_pp<-st_difference(sed_basin, pp_cont)
   
   
-  
-  
-  
   # Remove basins with no pourpoint info 
-  # This removes basins that have NO pourpoint identified - we add these back in later
-  # AND country/basins that do not have pourpoints
+  # This removes basins that have NO pourpoint identified - we add some of these back in later
+  # AND country/basins that do not have pourpoints due to being small offshore islands or mismatches in the modelled data
   pp_basins<-sed_bas_pp2 %>% 
     filter(!is.na(HYRIV_I) == T)
   
@@ -458,7 +568,7 @@ for(i in 1:length(bas)){
 
 missing_pp_basins<-dat[which(!dat$MAIN_BAS %in% bas),]
  
-   #write.csv(missing_pp_basins, here(paste0("output_data/Pourpoints/Missing_basins_pp_", name2,".csv")))
+   write.csv(missing_pp_basins, here(paste0("output_data/Pourpoints/Missing_basins_pp_", name2,".csv")))
    
    mis_bas<-unique(missing_pp_basins$MAIN_BAS)
    all2<-c()
