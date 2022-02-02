@@ -51,9 +51,9 @@ trans_rivers<-function(x){
  
  match<-case_when(name2 == "Africa" ~ "af",
                   name2 == "Asia" ~ "as",
-                  name2 == "Europe" ~ c("eu", "gr"),
+                  name2 == "Europe" ~ c("eu", "gr", "si"),
                   name2 == "North America" ~ "na",
-                  name2 == "Oceania" ~ c("si", "au"),
+                  name2 == "Oceania" ~ "au",
                   name2 == "South America" ~ "sa")
  
  match_river<-list_rivers[grep(paste(match, collapse="|"), list_rivers)]
