@@ -18,7 +18,7 @@ library(gdalUtils)
 library(terra)
 library(pbmcapply)
 
-t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+t_crs<-'ESRI:54009'
 ```
 # Load data
 
@@ -59,7 +59,8 @@ basin_iso3_files<-basin_iso3_files[-2]
 ```{r}
 quantify_sediment<-function(x){
 
-basin_iso3<-st_read(x)
+basin_iso3<-st_read(x) %>% 
+  filter(prop_basin>=0.01) # Remove country/basins with <1% of the basin area, alternatively could do a certain area threshold. Check with co-authors.
 
 name<-str_remove(x, here("output_data/Prop_basin_iso3_"))
 name2<-str_remove(name, ".shp")
