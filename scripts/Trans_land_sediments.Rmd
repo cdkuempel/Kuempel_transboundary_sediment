@@ -64,7 +64,7 @@ pp_basins<-st_join(pp, basins) %>%
 # Determine location of pourpoints
 
 ```{r}
-continents<-c("Asia", "Europe", "North America", "Oceania", "South America")
+continents<-c("Africa", "Asia", "Europe", "North America", "Oceania", "South America")
 ```
 
 # CHECK BASINS THAT HAVE n = 1 but proportion of basin <1
@@ -106,7 +106,7 @@ find_pp<-function(x){
    pp_loc_done<-pp_loc %>% 
      filter(!is.na(ISO3) == T) %>% 
      as.data.frame() %>% 
-     dplyr::select(-geometry, -sed_sum, -sed_mean)
+     dplyr::select(-geometry, -sed_mean)
    
    # Identify pourpoints that did not match up spatially
    pp_mis<-pp_cont %>% 
@@ -152,7 +152,7 @@ find_pp<-function(x){
       
       pp_loc_mis<-cbind(pp1, pp_mis_sed) %>% 
      as.data.frame() %>% 
-     dplyr::select(-geometry, -sed_sum, -sed_mean)
+     dplyr::select(-geometry, -sed_mean)
       
       test<-left_join(pp_loc_mis, pp_basins, by = c("HYRIV_I", "NEXT_DO", "MAIN_RI", "rv_d_3_", "ENDORHE")) 
       
@@ -160,8 +160,21 @@ find_pp<-function(x){
         mutate(MAIN_BAS.y = ifelse(is.na(MAIN_BAS.y) == T, test$MAIN_BAS.x, test$MAIN_BAS.y))
       
       if(test$MAIN_BAS.x != test$MAIN_BAS.y){
+        
+        sed_val<-sed_dat %>% 
+          filter(MAIN_BAS == test$MAIN_BAS.y,
+            ISO3 == test$ISO3) %>% 
+          as.data.frame() %>% 
+          dplyr::select(-geometry, -ISO3, -Country, -MAIN_BAS, -Continent, -sed_mean) %>% 
+          as.numeric() 
+        
+        
         pp_loc_mis<-pp_loc_mis %>% 
-          mutate(MAIN_BAS = test$MAIN_BAS.y) 
+          mutate(MAIN_BAS = test$MAIN_BAS.y,
+                 sed_sum = sed_val)
+        
+        
+          
         
         # Some don't exist in sed_dat because they are basins on small islands so we remove these
         sub_sed<-sed_dat %>% 
