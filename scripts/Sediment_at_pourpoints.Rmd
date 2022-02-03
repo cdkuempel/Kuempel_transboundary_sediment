@@ -33,6 +33,22 @@ pp<-
   st_transform(., t_crs)
 ```
 
+```{r}
+list_sed_basin<-list.files(here("output_data/Sediment"), pattern = ".shp", full.names = T)
+
+#list_sed_basin<-list.files(here("output_data/Transboundary"), pattern = #"Terrestrial_transboundary_", full.names = TRUE)
+
+sed_dat <- 
+  do.call(rbind,
+          lapply(list_sed_basin, st_read)) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+bas_sed_dat<-sed_dat %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(bas_sed_sum = sum(sed_sum, na.rm = T))
+```
+
 
 # For loop for sediment distribution
 
@@ -43,12 +59,14 @@ continents<-c("Africa", "Asia", "Europe", "North America", "Oceania", "South Ame
 ```{r}
 dist_sed<-function(x){
 name2<-x
-dat<-read.csv(here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv")))
+dat<-read.csv(here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv"))) %>% 
+  dplyr::select(-sed_sum, -mis_bas, -mis_bas_w_sed, -mis_pp, -total_mis_sed)
 
 # Join basin and pourpoint info
 
 bas_pp<-full_join(pp, dat) %>% 
-  filter(!is.na(MAIN_BAS) == T)
+  filter(!is.na(MAIN_BAS) == T) %>% 
+  left_join(., bas_sed_dat)
 
 # Distribute sediments
 
@@ -62,8 +80,8 @@ total_dis<-bas_pp %>%
 bas_pp_dist<- bas_pp %>% 
   left_join(., total_dis, by = "MAIN_BAS") %>% 
   mutate(prop_dis = rv_d_3_/Total_discharge,
-         sed_pp = prop_dis * sed_sum) %>% 
-  dplyr::select(-X, -mis_bas, -mis_bas_w_sed, -mis_pp, -total_mis_sed)
+         sed_pp = prop_dis * bas_sed_sum) %>% 
+  dplyr::select(-X)
 
 
 #test<-bas_pp_dist %>% 
