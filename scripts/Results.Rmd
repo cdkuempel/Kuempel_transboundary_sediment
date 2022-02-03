@@ -97,6 +97,14 @@ length(which(iso3_df$n_basins>1))
 
 # Number of countries with transboundary basins
 length(which(iso3_df$n_trans>0))
+
+# Percent of countries with transboundary basin
+length(which(iso3_df$n_trans>0))/length(unique(iso3_df$ISO3))
+```
+
+```{r}
+#Number of countries where all basins are transboundary
+length(which(iso3_df$prop_trans==1))
 ```
 
 # Sediment export
