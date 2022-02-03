@@ -35,25 +35,23 @@ pp<-
 
 
 # For loop for sediment distribution
+
 ```{r}
-name2<-"Africa"
-dat<-read.csv(here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv")))
+continents<-c("Africa", "Asia", "Europe", "North America", "Oceania", "South America")
 ```
+
+```{r}
+dist_sed<-function(x){
+name2<-x
+dat<-read.csv(here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv")))
 
 # Join basin and pourpoint info
 
-```{r}
 bas_pp<-full_join(pp, dat) %>% 
   filter(!is.na(MAIN_BAS) == T)
 
-#bas_pp_df<-bas_pp %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
-  
-```
 # Distribute sediments
 
-```{r}
 total_dis<-bas_pp %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry) %>% 
@@ -69,13 +67,18 @@ bas_pp_dist<- bas_pp %>%
 
 
 #test<-bas_pp_dist %>% 
-#  filter(MAIN_BAS == 1080025080)
+#  filter(MAIN_BAS == 4080075460)
 
+st_write(bas_pp_dist,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_", name2,".shp")), delete_layer = T)
+
+}
 ```
+
 
 ```{r}
-st_write(bas_pp_dist,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_", name2,".shp")), delete = T)
+pbmclapply(continents, dist_sed, mc.cores = length(continents), mc.style = "ETA")
 ```
+
 
 ```{r}
 test<-st_read(here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_", name2,".shp")))
