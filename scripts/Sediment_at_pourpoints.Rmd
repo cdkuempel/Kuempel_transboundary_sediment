@@ -49,6 +49,19 @@ bas_sed_dat<-sed_dat %>%
   summarise(bas_sed_sum = sum(sed_sum, na.rm = T))
 ```
 
+# PP Location
+
+```{r}
+pp_loc_list<-list.files(here("output_data/Pourpoints"), pattern = "Missing_pp_chunk", full.names = T)
+
+pp_loc_mis<-
+  do.call(rbind,
+          lapply(pp_loc_list, read.csv))
+
+pp_all<-read.csv(here("output_data/Pourpoints/PP_location_all.csv"))
+
+pp_done<-rbind(pp_all, pp_loc_mis)
+```
 
 # For loop for sediment distribution
 
@@ -57,14 +70,14 @@ continents<-c("Africa", "Asia", "Europe", "North America", "Oceania", "South Ame
 ```
 
 ```{r}
-dist_sed<-function(x){
-name2<-x
-dat<-read.csv(here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv"))) %>% 
-  dplyr::select(-sed_sum, -mis_bas, -mis_bas_w_sed, -mis_pp, -total_mis_sed)
+#dist_sed<-function(x){
+#name2<-x
+#dat<-read.csv(here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv"))) %>% 
+#  dplyr::select(-sed_sum, -mis_bas, -mis_bas_w_sed, -mis_pp, -total_mis_sed)
 
 # Join basin and pourpoint info
 
-bas_pp<-full_join(pp, dat) %>% 
+bas_pp<-full_join(pp, pp_done) %>% #use to be dat
   filter(!is.na(MAIN_BAS) == T) %>% 
   left_join(., bas_sed_dat)
 
@@ -85,21 +98,20 @@ bas_pp_dist<- bas_pp %>%
 
 
 #test<-bas_pp_dist %>% 
-#  filter(MAIN_BAS == 4080075460)
+#  filter(MAIN_BAS == 1080031170)
 
-st_write(bas_pp_dist,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_", name2,".shp")), delete_layer = T)
+st_write(bas_pp_dist,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.shp")), driver = "GeoJSON", delete_layer = T)
 
-}
 ```
 
 
 ```{r}
-pbmclapply(continents, dist_sed, mc.cores = length(continents), mc.style = "ETA")
+#pbmclapply(continents, dist_sed, mc.cores = length(continents), mc.style = #"ETA")
 ```
 
 
 ```{r}
-test<-st_read(here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_", name2,".shp")))
+test<-st_read(here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.shp")))
 
 test2<-test[1:10,]
 ```
