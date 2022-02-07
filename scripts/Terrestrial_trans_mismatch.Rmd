@@ -1,0 +1,226 @@
+---
+title: "Terrestrial_trans_mismatch"
+author: "Caitie"
+date: "03/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(sf)
+
+t_crs<-'ESRI:54009'
+```
+
+# Load data
+
+Proportin of basin in each country
+```{r}
+files<-list.files(path = here("output_data"), pattern = "Prop_basin_iso3_", full.names = T)
+
+sub_files<-files[grep(pattern = ".csv", files)]
+sub_files<-sub_files[-2] #Remove Antarctica
+
+basin_iso3_files<-files[grep(pattern = ".shp", files)]
+
+shp_files<-list.files(path = here("output_data/Sediment"), pattern = ".shp", full.names = T)
+```
+
+```{r}
+basins<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
+  st_make_valid() 
+```
+
+# PP Location
+
+```{r}
+pp_loc_list<-list.files(here("output_data/Pourpoints"), pattern = "Missing_pp_chunk", full.names = T)
+
+pp_loc_mis<-
+  do.call(rbind,
+          lapply(pp_loc_list, read.csv))
+
+pp_all<-read.csv(here("output_data/Pourpoints/PP_location_all.csv"))
+
+pp_done<-rbind(pp_all, pp_loc_mis)
+```
+
+# Sediment at pourpoints
+
+```{r}
+pp_sed_all<-st_read(here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.shp")))
+```
+```{r}
+pp_sed_join<-full_join(pp_sed_all, pp_done)
+```
+
+# Function to find mismatch
+
+2080092790 in Iran and Afghanistan
+```{r}
+land_trans_sed<-function(x){
+  
+  # Read in proportion of basin csv for country and subset to transboundary basins
+  dat<-read.csv(x) %>% 
+    filter(n>1)
+  
+  # Get name for matching
+  name<-str_remove(x, here("output_data/Prop_basin_iso3_"))
+  name2<-str_remove(name, ".csv")
+  
+  # Match to sediment calculation shapefile for country
+  sub_shp<-shp_files[grep(pattern = name2, shp_files)]
+  # Read in sediment file
+  sed_dat<-st_read(sub_shp) %>% 
+  dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean) %>% 
+    st_transform(., t_crs)
+  
+  # Join sediment data to proportion of basin data
+  sed_basin<-right_join(sed_dat, dat, by = c("MAIN_BAS", "Country", "ISO3", "Continent")) 
+  
+  # Calculate total sediment by main basin
+  total_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_sed = sum(sed_sum, na.rm = T))
+  
+  # Join total sediment to sediment data to calculate proportion of sediment per country/basin
+  sed_basin<-sed_basin %>% 
+  full_join(., total_sed, by = "MAIN_BAS") %>% 
+  mutate(prop_sed = sed_sum/total_sed)
+  
+  # Read in pourpoint location data
+ 
+  pp_sed<-pp_sed_join %>% 
+    filter(Continent == name2)
+  
+  #bas<-unique(pp_sed$MAIN_BAS)
+  
+  sed_basin2<-sed_basin %>% 
+    filter(!is.na(ISO3) == T)
+  
+  bas<-unique(sed_basin2$MAIN_BAS)
+  
+  test<-pp_sed %>% 
+    filter(pp_sed$MAIN_BAS %in% sed_basin2$MAIN_BAS)
+
+  all<-c()
+
+for(i in 1:length(bas)){
+  
+  print(i)
+  
+  sub<-sed_basin2 %>% 
+    filter(MAIN_BAS == 	bas[i]) %>% 
+    as.data.frame() %>% 
+    dplyr::select(-geometry) %>% 
+    mutate(prop_basin = round(prop_basin, 3))
+  
+  test_sed<-sum(sub$sed_sum,na.rm = T)
+  
+  #If no sediment exported from basin we skip it
+  #I think this only occurs for MAIN_BAS 2080084740 in Asia
+  if(test_sed == 0){ 
+    next()
+  }
+  
+  sub_pp<-pp_sed %>% 
+    filter(MAIN_BAS == bas[i]) %>% 
+    as.data.frame() %>% 
+    dplyr::select(-geometry) %>% 
+    dplyr::select(HYRIV_I, ISO3, NEXT_DO, MAIN_RI, rv_d_3_, ENDORHE, MAIN_BAS, Continent)
+  
+  sub_pp2<-unique(sub_pp$HYRIV_I) #assume NAs mean there is only 1 pp in basin
+  
+  sub_pp2<-sub_pp2[!is.na(sub_pp2) == T]
+  
+  pp_num<- length(sub_pp2)
+  
+  pp_prop <- sub_pp %>% 
+    group_by(MAIN_BAS, ISO3) %>% 
+    mutate(n_pp = length(unique(HYRIV_I)),
+           total_pp = pp_num,
+           n_pp = ifelse(is.na(HYRIV_I) == T, 0, as.numeric(n_pp)),
+           prop_pp = n_pp/pp_num)
+  
+  total_discharge <- sub_pp %>% 
+    group_by(MAIN_BAS) %>% 
+    summarise(total_discharge = sum(rv_d_3_, na.rm = T))
+  
+  sub_pp3 <- sub_pp %>% dplyr::select(-ISO3, -Continent)
+  
+  sed_discharge<- sub %>% 
+    full_join(., sub_pp3, by = c("MAIN_BAS")) %>% 
+    full_join(., total_discharge) %>% 
+    mutate(prop_dis = rv_d_3_/total_discharge,
+           pp_dis = prop_dis * total_sed * prop_sed)
+  
+  pp_loc<-unique(pp_prop[which(pp_prop$prop_pp == max(pp_prop$prop_pp)), "ISO3"])
+  
+ maj_dis<-sed_discharge %>% 
+    group_by(ISO3, MAIN_BAS) %>% 
+    summarise(iso3_pp_dis = sum(pp_dis, na.rm = T)) %>% 
+    mutate(iso3_pp_dis_prop = iso3_pp_dis/unique(sub$total_sed))
+  
+  maj_dis_loc<-maj_dis %>% 
+    filter(iso3_pp_dis_prop == max(maj_dis$iso3_pp_dis_prop)) %>% 
+    dplyr::select(ISO3) %>% 
+    as.character()
+  
+  max_sed<-max(sub$prop_sed,na.rm = T)
+  maj_sed<-unique(sub[which(sub$prop_sed == max_sed), "ISO3"])
+  max_bas<-max(sub$prop_basin,na.rm = T)
+  maj_prop<-unique(sub[which(sub$prop_basin == max_bas), "ISO3"])
+  n_iso3 <-length(unique(sub$ISO3))
+  
+  done<-pp_prop %>% 
+    full_join(., sed_discharge) %>% 
+    dplyr::select(ISO3, MAIN_BAS, Continent, sed_sum, sed_mean, area_km2, b_area_km2, iso3_b_km2, prop_basin, n, total_sed, prop_sed, HYRIV_I, rv_d_3_, ENDORHE, n_pp, total_pp, prop_pp, prop_dis, pp_dis) %>% 
+    mutate(pp_iso3 = as.character(pp_loc),
+           max_pp_dis_iso3 = maj_dis_loc,
+           max_sed_iso3 = maj_sed,
+           max_prop_bas_iso3 = maj_prop,
+           iso3_pp_dis_prop = pp_dis/unique(sub$total_sed),
+           n_iso3 = n_iso3) 
+  
+  all<-rbind(all, done)
+}
+  
+   missing_pp_basins<-dat[which(!dat$MAIN_BAS %in% pp_sed$MAIN_BAS),]
+   write.csv(missing_pp_basins, here(paste0("output_data/Pourpoints/Missing_basins_pp_", name2,".csv")))
+   write.csv(all, here(paste0("output_data/Transboundary/Terrestrial_transboundary_",name2,".csv")))
+}
+```
+
+
+
+```{r}
+pbmclapply(sub_files, land_trans_sed, mc.cores = length(sub_files), mc.style = "ETA")
+```
+
+# Missing basins explanations
+
+Africa
+1080018110 - no pourpoint located in this basin - differences between RiverAtlas and Country/Sediment layers
+1080020200 - no pourpoint located in this basin - differences between RiverAtlas and Country/Sediment layers
+
+
+Asia - there are 6
+
+Europe there are 3
+Oceania there are 2
+North America 3
+South America 0 
+
+```{r}
+name2<-"South America"
+test<-read.csv(here(paste0("output_data/Pourpoints/Missing_basins_pp_", name2,".csv")))
+length(unique(test$MAIN_BAS))
+```
+
