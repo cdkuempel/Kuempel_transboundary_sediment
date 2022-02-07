@@ -61,6 +61,151 @@ basins<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>%
 pp_basins<-st_join(pp, basins) %>% 
   filter(!is.na(MAIN_BAS) == T)
 ```
+ 
+```{r}
+
+sed_dat<-do.call(rbind,
+          lapply(shp_files, st_read)) %>% 
+  st_transform(., t_crs)
+  
+  
+  #st_read(sub_shp) %>% 
+  #dplyr::select(ISO3, Country, MAIN_BAS, Continent, sed_sum, sed_mean) %>% 
+  #  st_transform(., t_crs)
+```
+
+```{r}
+pp_loc<-st_join(pp, sed_dat) 
+```
+
+```{r}
+# Remove pourpoints without country info
+   
+   pp_loc_done<-pp_loc %>% 
+     filter(!is.na(ISO3) == T) %>% 
+     as.data.frame() %>% 
+     dplyr::select(-geometry, -sed_mean)
+
+write.csv(pp_loc_done, here("output_data/Pourpoints/PP_location_all.csv"))
+   
+   # Identify pourpoints that did not match up spatially
+   pp_mis<-pp %>% 
+     filter(!HYRIV_I %in% pp_loc_done$HYRIV_I)
+```
+
+```{r}
+n<-10
+pp_chunk<-split(pp_mis, factor(sort(rank(row.names(pp_mis))%%n)))
+
+mis_df<-c()
+
+missing_pp<-function(x){ 
+    
+  pp_mis2<-x
+  name<-pp_mis2$HYRIV_I[1]
+
+for(i in 1:nrow(pp_mis2)){
+
+  pp1<-pp_mis2[i,] #shouldn't have any basin/country info
+     
+     nearest<-st_nearest_feature(pp1, sed_dat)
+  
+      pp_mis_sed<-sed_dat[nearest,] %>% 
+        as.data.frame() %>% 
+        dplyr::select(-geometry)
+      
+      pp_loc_mis<-cbind(pp1, pp_mis_sed) %>% 
+     as.data.frame() %>% 
+     dplyr::select(-geometry, -sed_mean)
+      
+      #pp_loc_mis
+  # HYRIV_I NEXT_DO  MAIN_RI rv_d_3_ ENDORHE ISO3 Country   MAIN_BAS Continent  sed_sum
+#1 10000006       0 10000006   0.065       0  TUN Tunisia 1080031230    Africa 262170.7
+      
+      test<-left_join(pp_loc_mis, pp_basins, by = c("HYRIV_I", "NEXT_DO", "MAIN_RI", "rv_d_3_", "ENDORHE")) 
+      
+      #HYRIV_I NEXT_DO  MAIN_RI rv_d_3_ ENDORHE ISO3 Country MAIN_BAS.x Continent  sed_sum
+#1 10000006       0 10000006   0.065       0  TUN Tunisia 1080031230    Africa 262170.7
+#  MAIN_BAS.y                 geometry
+#1 1080031230 POINT (876970.3 4479523)
+      
+      test<-test %>% 
+        mutate(MAIN_BAS.y = ifelse(is.na(MAIN_BAS.y) == T, test$MAIN_BAS.x, test$MAIN_BAS.y))
+      
+      if(test$MAIN_BAS.x != test$MAIN_BAS.y){
+        
+        sed_val<-sed_dat %>% 
+          filter(MAIN_BAS == test$MAIN_BAS.y,
+            ISO3 == test$ISO3) %>% 
+          as.data.frame() %>% 
+          dplyr::select(sed_sum) %>% 
+          as.numeric() 
+        
+        
+        pp_loc_mis<-pp_loc_mis %>% 
+          mutate(MAIN_BAS = test$MAIN_BAS.y,
+                 sed_sum = sed_val)
+        
+        
+          
+        
+        # Some don't exist in sed_dat because they are basins on small islands so we remove these
+        sub_sed<-sed_dat %>% 
+          filter(MAIN_BAS == pp_loc_mis$MAIN_BAS)
+        
+        if(nrow(sub_sed) == 0){
+          pp_loc_mis<-c()
+        }
+      }
+      mis_df<-rbind(mis_df, pp_loc_mis)
+ }     
+  write.csv(mis_df, here(paste0("output_data/Pourpoints/Missing_pp_chunk", name, ".csv")))
+}
+```
+
+```{r}
+pbmclapply(pp_chunk, missing_pp, mc.cores = 5, mc.style = "ETA")
+```
+
+```{r}
+done<-rbind(pp_loc_done, mis_df)
+   
+   # How many rivers still do not have basin/country pourpoint info?
+   test<- pp_loc %>% 
+     filter(!pp_loc$HYRIV_I %in% done$HYRIV_I)
+   
+    length(unique(test$HYRIV_I))
+   
+   # Africa - We still are missing 198 river pourpoint locations or 1.2% of rivers in the dataset
+   
+   # How many main basins don't have a river pourpoint?
+   test2<- sed_dat %>% 
+     filter(!sed_dat$MAIN_BAS %in% done$MAIN_BAS) %>% 
+     as.data.frame() %>% 
+     dplyr::select(-geometry)
+   
+   length(unique(test2$MAIN_BAS))
+   
+   test3<-test2 %>% 
+     filter(!is.na(sed_sum) == T,
+            sed_sum>0)
+   
+   length(unique(test3$MAIN_BAS))
+   
+  # Africa - 184 Main basins are in the sediment dataset but still don't have a river pourpoint, 4.7%
+  # Africa - 154 of these have some sediment discharge
+   
+   done2<-done %>% 
+     mutate(mis_bas =  length(unique(test2$MAIN_BAS)),
+            mis_bas_w_sed = length(unique(test3$MAIN_BAS)),
+            mis_pp = length(unique(test$HYRIV_I)),
+            total_mis_sed = sum(test3$sed_sum, na.rm = T))
+  
+   write.csv(done2, here(paste0("output_data/Pourpoints/PP_location_", name2, ".csv")))
+   write.csv(test, here(paste0("output_data/Pourpoints/River_location_missing_", name2, ".csv")))
+   write.csv(test2, here(paste0("output_data/Pourpoints/Basin_pp_missing_", name2,".csv")))
+```
+
 # Determine location of pourpoints
 
 ```{r}
@@ -74,21 +219,21 @@ find_pp<-function(x){
    name2<-x
    print(name2)
    
-   match<-case_when(name2 == "Africa" ~ "af",
-                  name2 == "Asia" ~ c("as"),
-                  name2 == "Europe" ~ c("eu", "gr", "si"),
-                  name2 == "North America" ~ "na",
-                  name2 == "Oceania" ~ c("au"),
-                  name2 == "South America" ~ "sa")
+   #match<-case_when(name2 == "Africa" ~ "af",
+  #                name2 == "Asia" ~ c("as"),
+  #                name2 == "Europe" ~ c("eu", "gr", "si"),
+  #                name2 == "North America" ~ "na",
+  #                name2 == "Oceania" ~ c("au"),
+  #                name2 == "South America" ~ "sa")
  
-  match_pp<-sub_pp_list[grep(paste(match, collapse="|"), sub_pp_list)]
+  #match_pp<-sub_pp_list[grep(paste(match, collapse="|"), sub_pp_list)]
   
   # Read in pourpoint data
  
- pp_cont<-
-  do.call(rbind,
-          lapply(match_pp, st_read)) %>% 
-   st_transform(., t_crs)
+ #pp_cont<-
+#  do.call(rbind,
+#          lapply(match_pp, st_read)) %>% 
+#   st_transform(., t_crs)
  
  # Match to sediment calculation shapefile for country
   sub_shp<-shp_files[grep(pattern = name2, shp_files)]
