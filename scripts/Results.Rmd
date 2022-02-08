@@ -15,6 +15,7 @@ library(tidyverse)
 library(data.table)
 library(countrycode)
 library(raster)
+library(sf)
 ```
 
 # How many watersheds are transboundary globally?
@@ -105,6 +106,8 @@ length(which(iso3_df$n_trans>0))/length(unique(iso3_df$ISO3))
 ```{r}
 #Number of countries where all basins are transboundary
 length(which(iso3_df$prop_trans==1))
+
+length(which(iso3_df$prop_trans==1))/length(unique(iso3_df$ISO3))
 ```
 
 # Sediment export
@@ -163,106 +166,175 @@ sum(trans_sed_sum$sed_sum)/total_sed
 # Number of basins
 length(unique(sed_dat$MAIN_BAS))
 ```
+# Transboundary mismatch
+
+Mismatch in where the sediment comes form and where the pourpoint is
+
+At this point we don't care whether it is cryptoheric or not
+
+```{r}
+list_mismatch<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial", full.names = T)
+  
+mismatch<-do.call(rbind,
+          lapply(list_mismatch, read.csv))
+
+```
+
+Mismatch between country that produces majority of sediment and where sediment is released
+```{r}
+sub_mismatch<-mismatch %>% 
+  filter(max_sed_iso3 != pp_iso3,
+          nchar(pp_iso3)==3)
+
+length(unique(sub_mismatch$MAIN_BAS))
+```
+
+```{r}
+sub_mismatch %>% 
+  group_by(Continent) %>% 
+  summarise(uniq_bas = length(unique(MAIN_BAS)),
+            prop_bas = uniq_bas/length(unique(sub_mismatch$MAIN_BAS)))
+
+table(sub_mismatch$Continent)/length(unique(sub_mismatch$MAIN_BAS))
+```
+
+Mismatches where >90% of sediment is produced in the country that does not contain the pourpoint
+
+Potentially modify if we don't want rivers with no discharge.
+```{r}
+maj_sub_mismatch<-sub_mismatch %>% 
+  filter(prop_sed>0.9)
+
+length(unique(maj_sub_mismatch$MAIN_BAS))
+```
+
+
+```{r}
+maj_sub_mismatch %>% 
+  group_by(ISO3) %>% 
+  summarise(uniq_bas = length(unique(MAIN_BAS)),
+            prop_bas = uniq_bas/length(unique(maj_sub_mismatch$MAIN_BAS))) %>% 
+  arrange(desc(prop_bas))
+```
+
+
+If we remove rivers without discharge it is
+
+```{r}
+sub_mismatch2<-sub_mismatch %>% 
+  filter(rv_d_3_>0,
+         !is.na(rv_d_3_) == T,
+    max_sed_iso3 != pp_iso3)
+
+length(unique(sub_mismatch2$MAIN_BAS))
+```
+Check these basins:
+7080073410 Seems weird as multiple countries but they are small islands
+
+Check ones that have charachter(0) as pp_loc
+
+1080020200 in Africa but does not have Pp location - remove?
+2080000360 Same as above in Asia
+2080006710 Same as above
+2080019300
+2080022590
+2080069200
+4080002770
+
+
+Additional areas of concern - but the same proportion of pourpoints across multiple countries
+```{r}
+equal_pp<-mismatch %>% 
+  filter(nchar(pp_iso3)>3)
+```
+
 
 # Transboundary, cryptoheric watersheds
 
-```{r}
-list_crypt_sed_basin<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial_transboundary_", full.names = TRUE)
+Pourpoint locations
 
-crypt_sed_dat <- 
+```{r}
+pp_loc_list<-list.files(here("output_data/Pourpoints"), pattern = "Missing_pp_chunk", full.names = T)
+
+pp_loc_mis<-
   do.call(rbind,
-          lapply(list_crypt_sed_basin, read.csv))
+          lapply(pp_loc_list, read.csv))
 
-trans_crypt_sed_sum<-crypt_sed_dat %>% 
-  group_by(ISO3, Continent, MAIN_BAS) %>% 
-  filter(!duplicated(sed_sum))
+pp_all<-read.csv(here("output_data/Pourpoints/PP_location_all.csv"))
+
+pp_done<-rbind(pp_all, pp_loc_mis) %>% 
+  dplyr::select(HYRIV_I, NEXT_DO, MAIN_RI, rv_d_3_, ENDORHE, MAIN_BAS)
 ```
+
+Join to sed dat
+
+Number of cryptorheic basins
+```{r}
+crypt<-full_join(sed_dat, pp_done, by = "MAIN_BAS") %>% 
+  filter(ENDORHE == 0)
+
+length(unique(crypt$MAIN_BAS))/23934
+```
+
+Number of transboundary cryptoheric basins
 
 ```{r}
-#Number of transboundary cryptoheric basins
+trans_crypt<-crypt %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS)
 
-length(unique(trans_crypt_sed_sum$MAIN_BAS))
+length(unique(trans_crypt$MAIN_BAS))
+length(unique(trans_crypt$MAIN_BAS))/length(unique(trans_basins$MAIN_BAS))
+```
 
-# Proportion of transboundary that are also cryptoheric
-length(unique(trans_crypt_sed_sum$MAIN_BAS))/length(which(iso3_basins$n_iso3>1))
+Remove rivers with  no discharge - need to see what to do about these
+```{r}
+sub_trans_crypt<-crypt %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
+         rv_d_3_>0)
 
-# Breakdown by Continent
-sub<-trans_crypt_sed_sum %>% 
-  ungroup() %>% 
-  dplyr::select(MAIN_BAS, Continent) %>% 
-  filter(!duplicated(MAIN_BAS))
-
-table(sub$Continent)/length(unique(trans_crypt_sed_sum$MAIN_BAS))
-
+length(unique(sub_trans_crypt$MAIN_BAS))
+length(unique(sub_trans_crypt$MAIN_BAS))/length(unique(trans_basins$MAIN_BAS))
 ```
 ```{r}
-# Total sediment export? What does this layer represent?
-sum(trans_crypt_sed_sum$sed_sum, na.rm = T)/1000000 #Megaton
+trans_crypt_df<-trans_crypt %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
 
-# Proportion of transboundary sed
-sum(trans_crypt_sed_sum$sed_sum)/total_sed
 
+trans_crypt_df %>% 
+  group_by(Continent) %>% 
+  summarise(uniq_bas = length(unique(MAIN_BAS)),
+            prop_bas = uniq_bas/length(unique(trans_crypt$MAIN_BAS))) %>% 
+  arrange(desc(prop_bas))
 ```
-
 ```{r}
-iso3_crypt_trans_basins<- trans_crypt_sed_sum %>% 
-  group_by(ISO3, Continent) %>% 
-  summarise(n_crypt_basins = length(unique(MAIN_BAS)))
+trans_crypt_sed<-sed_dat %>% 
+  filter(MAIN_BAS %in% trans_crypt$MAIN_BAS)
 
-iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>%
-  full_join(., iso3_crypt_trans_basins) %>% 
-  mutate(prop_trans = n_trans/n_basins,
-         prop_crypt = n_crypt_basins/n_basins,
-         prop_trans_crypt = n_crypt_basins/n_trans,
-         Country = countrycode(ISO3, "iso3c", "country.name"))
+sum(trans_crypt_sed$sed_sum,na.rm = T)/1000000
+sum(trans_crypt_sed$sed_sum,na.rm = T)/total_sed
 ```
 
-
-```{r}
-sub_sed_dat<-crypt_sed_dat %>% 
-  filter(pp_iso3 != max_sed_iso3)
-
-test<-sub_sed_dat %>% 
-  filter(pp_iso3 %in% c("c(\"GIN\", \"SLE\")", "c(\"GMB\", \"SEN\")",  "c(\"IRN\", \"PAK\")", "c(\"IDN\", \"MYS\")", "c(\"CRI\", \"NIC\")", "c(\"PRI\", \"VIR\")", "c(\"BRA\", \"URY\")", "c(\"CHL\", \"PER\")"))
-
-sub_sed_dat2<-sub_sed_dat %>% 
-  filter(!pp_iso3 %in% c("c(\"GIN\", \"SLE\")", "c(\"GMB\", \"SEN\")",  "c(\"IRN\", \"PAK\")", "c(\"IDN\", \"MYS\")", "c(\"CRI\", \"NIC\")", "c(\"PRI\", \"VIR\")", "c(\"BRA\", \"URY\")", "c(\"CHL\", \"PER\")"))
-
-# Main basins with mismatch between country with max sediment export and country with pourpoint
-length(unique(sub_sed_dat2$MAIN_BAS))
-
-# Watersheds with equal proportion of pourpoints
-length(unique(test$MAIN_BAS))
-```
-
-```{r}
-# Basins where >90% of sediment is produced in a different country than the pourpoint
-prop_sed<-sub_sed_dat2 %>% 
-  filter(prop_sed>0.9)
-
-length(unique(prop_sed$MAIN_BAS))
-```
-
-
-```{r}
-table(test$Continent)/length(unique(sub_sed_dat2$MAIN_BAS))
-```
 
 # Transboundary coral reef sediments
 
+DOUBLE CHECK THIS - make sure using right pourpoint layer
+
 ```{r}
+# These pourpoints are just ones that drain to coral reefs? Double check
 reef_pp<-st_read(here("raw_data/Pourpoints/pour_points_all.shp")) 
 
-reef_sed<- trans_crypt_sed_sum %>% 
+reef_sed<- trans_crypt_df %>% 
   filter(HYRIV_I %in% reef_pp$HYRIV_I)
 ```
 
 ```{r}
 length(unique(reef_sed$MAIN_BAS))
+length(unique(reef_sed$MAIN_BAS))/length(unique(trans_crypt_sed$MAIN_BAS))
 ```
 
 ```{r}
-sum(reef_sed$sed_sum, na.rm = T)/sum(trans_crypt_sed_sum$sed_sum, na.rm = T)
+sum(reef_sed$sed_sum, na.rm = T)/sum(trans_crypt_sed$sed_sum, na.rm = T)
 
 sum(reef_sed$sed_sum, na.rm = T)/sum(trans_sed_sum$sed_sum, na.rm = T)
 
