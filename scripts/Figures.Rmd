@@ -16,8 +16,10 @@ library(ggplot2)
 library(tmap)
 library(sf)
 library(patchwork)
+library(rnaturalearth)
+library(rnaturalearthdata)
 
-t_crs<-"+proj=moll +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+t_crs<-'ESRI:54009'
 
 ```
 
@@ -49,9 +51,16 @@ iso3_basins<-dat %>%
 # Country shapefile
 
 ```{r}
-gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>% 
-  st_make_valid() %>% 
+world <- ne_countries(scale = "medium", returnclass = "sf") %>% 
+  dplyr::select(iso_a3) %>% 
+  rename(ISO3 = iso_a3) %>% 
   st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs")
+#class(world)
+```
+```{r}
+#gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>% 
+#  st_make_valid() %>% 
+#  st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs")
   #st_transform(., "+proj=eck4 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
 ```
 
@@ -73,13 +82,11 @@ breaks<-c(0,2,4,6,8,10,12,14,16,18,20)
 
 #Needs to be categorical to have histogram
 
-n_map<-tm_shape(gadm_area) +
-  tm_polygons() +
-tm_shape(shp_basins) +
+n_map<-tm_shape(shp_basins) +
     tm_fill("n_iso3", 
                 breaks = breaks,
                 style = "cont", 
-                title = "                                       Number of countries",
+                title = "                                Number of countries",
                 palette = "-RdYlBu",
             legend.is.portrait = FALSE) +
   tm_borders(lwd = 0.2,
@@ -89,13 +96,17 @@ tm_shape(shp_basins) +
             legend.outside.position = "bottom",
             legend.position = c(0.1, 0.1),
             frame = F) +
-  tm_shape(gadm_area) +
+  tm_shape(world) +
    tm_borders(alpha = 0.7) 
-  
+```
 
+```{r}
 n_map
 ```
 
+```{r}
+tmap_save(n_map, here("figures/Global_countries_per_basin.png"), dpi = 300)
+```
 
 
 # Continent bar charts
@@ -166,142 +177,7 @@ ggplot(iso3_df, aes(x = Continent, y = n, fill = factor(labels,levels=c("Single"
   scale_fill_manual(values = c("darkblue", "yellow", "darkred"))
 ```
 
-# Country radial chart
-
-```{r}
-iso3_cont_basins<-dat %>% 
-  filter(!duplicated(MAIN_BAS)) %>% 
-  group_by(ISO3, Continent) %>% 
-  summarise(n_basins = length(unique(MAIN_BAS)))
-
-
-trans_basins<-dat %>% 
-  filter(n >1)
-
-iso3_trans_basins<-dat %>% 
-  filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
-         !duplicated(MAIN_BAS)) %>% 
-  group_by(ISO3, Continent) %>% 
-  summarise(n_trans = length(unique(MAIN_BAS)))
-
-iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>% 
-  mutate(prop_trans = n_trans/n_basins)
-```
-
-```{r}
-list_crypt_sed_basin<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial_transboundary_", full.names = TRUE)
-
-crypt_sed_dat <- 
-  do.call(rbind,
-          lapply(list_crypt_sed_basin, read.csv))
-
-trans_crypt_sed_sum<-crypt_sed_dat %>% 
-  group_by(ISO3, Continent, MAIN_BAS) %>% 
-  filter(!duplicated(MAIN_BAS))
-```
-
-```{r}
-iso3_crypt_trans_basins<- trans_crypt_sed_sum %>% 
-  filter(!duplicated(sed_sum)) %>% 
-  group_by(ISO3, Continent) %>% 
-  summarise(n_crypt_basins = length(unique(MAIN_BAS)))
-
-iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>%
-  full_join(., iso3_crypt_trans_basins) %>% 
-  mutate(n_single = n_basins - n_trans) %>% 
-  dplyr::select(-n_basins) %>% 
-  pivot_longer(., cols = c(n_single, n_trans, n_crypt_basins), names_to = "type", values_to = "n") %>% 
-  mutate(labels = ifelse(type == "n_single","Single", 
-                         ifelse(type == "n_trans", "Transboundary", "Trans-cryptorheic"))) %>% 
-  ungroup()
 
 
 
-
-
-#%>% 
-#  mutate(prop_trans = n_trans/n_basins,
-#         prop_crypt = n_crypt_basins/n_basins,
-#         prop_trans_crypt = n_crypt_basins/n_trans)
-```
-
-```{r}
-
-data<-iso3_df %>% 
-  filter(type != "n_single") %>% 
-  rename(group = Continent,
-         individual = ISO3,
-         observation = type,
-         value = n)
-
-# Set a number of 'empty bar' to add at the end of each group
-empty_bar <- 2
-nObsType <- nlevels(as.factor(data$observation))
-to_add <- data.frame( matrix(NA, empty_bar*nlevels(data$group)*nObsType, ncol(data)) )
-colnames(to_add) <- colnames(data)
-to_add$group <- rep(levels(data$group), each=empty_bar*nObsType )
-data <- rbind(data, to_add)
-data <- data %>% arrange(group, individual)
-data$id <- rep( seq(1, nrow(data)/nObsType) , each=nObsType)
- 
-# Get the name and the y position of each label
-label_data <- data %>% group_by(id, individual) %>% summarize(tot=sum(value))
-number_of_bar <- nrow(label_data)
-angle <- 90 - 360 * (label_data$id-0.5) /number_of_bar     # I substract 0.5 because the letter must have the angle of the center of the bars. Not extreme right(1) or extreme left (0)
-label_data$hjust <- ifelse( angle < -90, 1, 0)
-label_data$angle <- ifelse(angle < -90, angle+180, angle)
- 
-# prepare a data frame for base lines
-base_data <- data %>% 
-  group_by(group) %>% 
-  summarize(start=min(id), end=max(id) - empty_bar) %>% 
-  rowwise() %>% 
-  mutate(title=mean(c(start, end)))
- 
-# prepare a data frame for grid (scales)
-grid_data <- base_data
-grid_data$end <- grid_data$end[ c( nrow(grid_data), 1:nrow(grid_data)-1)] + 1
-grid_data$start <- grid_data$start - 1
-grid_data <- grid_data[-1,]
-
-```
-
-```{r}
-# Make the plot
-p <- ggplot(data) +      
-  
-  # Add the stacked bar
-  geom_bar(aes(x=as.factor(id), y=value, fill=observation), stat="identity", alpha=0.5) +
-  scale_fill_viridis(discrete=TRUE) +
-  
-  # Add a val=100/75/50/25 lines. I do it at the beginning to make sur barplots are OVER it.
-  geom_segment(data=grid_data, aes(x = end, y = 0, xend = start, yend = 0), colour = "grey", alpha=1, size=0.3 , inherit.aes = FALSE ) +
-  geom_segment(data=grid_data, aes(x = end, y = 50, xend = start, yend = 50), colour = "grey", alpha=1, size=0.3 , inherit.aes = FALSE ) +
-  geom_segment(data=grid_data, aes(x = end, y = 100, xend = start, yend = 100), colour = "grey", alpha=1, size=0.3 , inherit.aes = FALSE ) +
-  geom_segment(data=grid_data, aes(x = end, y = 150, xend = start, yend = 150), colour = "grey", alpha=1, size=0.3 , inherit.aes = FALSE ) +
-  geom_segment(data=grid_data, aes(x = end, y = 200, xend = start, yend = 200), colour = "grey", alpha=1, size=0.3 , inherit.aes = FALSE ) +
-  
-  # Add text showing the value of each 100/75/50/25 lines
-  ggplot2::annotate("text", x = rep(max(data$id),5), y = c(0, 50, 100, 150, 200), label = c("0", "50", "100", "150", "200") , color="grey", size=6 , angle=0, fontface="bold", hjust=1) +
-  
-  ylim(-150,max(label_data$tot, na.rm=T)) +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.text = element_blank(),
-    axis.title = element_blank(),
-    panel.grid = element_blank(),
-    plot.margin = unit(rep(-1,4), "cm") 
-  ) +
-  coord_polar() +
-  
-  # Add labels on top of each bar
-  geom_text(data=label_data, aes(x=id, y=tot+10, label=individual, hjust=hjust), color="black", fontface="bold",alpha=0.6, size=5, angle= label_data$angle, inherit.aes = FALSE ) +
-  
-  # Add base line information
-  geom_segment(data=base_data, aes(x = start, y = -5, xend = end, yend = -5), colour = "black", alpha=0.8, size=0.6 , inherit.aes = FALSE )  +
-  geom_text(data=base_data, aes(x = title, y = -18, label=group), hjust=c(1,1,0,0, 0,0), vjust = c(0,0,0,0,0,-0.5), colour = "black", alpha=0.8, size=4, fontface="bold", inherit.aes = FALSE)
-
-p
-```
 
