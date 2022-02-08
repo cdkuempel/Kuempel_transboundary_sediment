@@ -62,6 +62,17 @@ pp_sed_join<-full_join(pp_sed_all, pp_done)
 # Function to find mismatch
 
 2080092790 in Iran and Afghanistan
+
+Check ones that have charachter(0) as pp_loc
+
+1080020200 in Africa but does not have Pp location - remove?
+2080000360 Same as above in Asia
+2080006710 Same as above
+2080019300
+2080022590
+2080069200
+4080002770
+
 ```{r}
 land_trans_sed<-function(x){
   
