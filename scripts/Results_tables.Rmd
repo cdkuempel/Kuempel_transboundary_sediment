@@ -1,0 +1,253 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "09/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(countrycode)
+library(raster)
+library(sf)
+
+options(scipen = 999)
+```
+
+# Load data
+
+## Proportion basins in each country
+
+Number of basins per country
+```{r}
+list_prop_basin<-list.files(here("output_data"), pattern = "Prop_basin_iso3", full.names = TRUE)
+
+sub_prop_basin<-list_prop_basin[grep(list_prop_basin, pattern = ".csv")] 
+
+dat <- 
+  do.call(rbind,
+          lapply(sub_prop_basin, read.csv))
+
+```
+
+## Sediment export
+
+# Sediment export
+
+```{r}
+# Total sediment exported
+#sed_moll<-raster(here("raw_data/Sediment/sediment_export_global_moll.tif"))
+
+#total_sed<-cellStats(sed_moll, "sum")
+
+total_sed<-24849341974
+
+# unit is tonnes/ha/yr
+#1 Mt = 1000000 t
+
+#Estimated ha of global basins = 13511831300
+
+total_sed_mt<-total_sed/1000000 #Megaton
+
+total_sed_mt
+```
+
+## Sediment export
+
+```{r}
+list_sed_basin<-list.files(here("output_data/Sediment"), pattern = ".shp", full.names = T)
+
+sed_dat <- 
+  do.call(rbind,
+          lapply(list_sed_basin, st_read))
+
+```
+
+## Pourpoint locations
+
+```{r}
+pp_loc_list<-list.files(here("output_data/Pourpoints"), pattern = "Missing_pp_chunk", full.names = T)
+
+pp_loc_mis<-
+  do.call(rbind,
+          lapply(pp_loc_list, read.csv))
+
+pp_all<-read.csv(here("output_data/Pourpoints/PP_location_all.csv"))
+
+pp_done<-rbind(pp_all, pp_loc_mis) %>% 
+  dplyr::select(HYRIV_I, NEXT_DO, MAIN_RI, rv_d_3_, ENDORHE, MAIN_BAS)
+```
+
+
+# Terrestrial Transboundary table
+
+## Basin results
+
+Number of countries per basin
+
+```{r}
+n_iso3_basin<-dat %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(n_iso3 = length(unique(ISO3)))
+```
+
+Total sediment per basin
+
+```{r}
+basin_sed_dat<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_sed_bas = sum(sed_sum, na.rm = T)) %>% 
+  mutate(prop_sed = total_sed_bas/total_sed)
+
+#test<-sed_dat %>% 
+#  filter(MAIN_BAS == 1080000520)
+```
+
+```{r}
+basin_table<-full_join(n_iso3_basin, basin_sed_dat)
+```
+
+Cryptorheic basins
+
+```{r}
+crypt_basins<-pp_done %>% 
+  filter(ENDORHE == 0)
+```
+
+```{r}
+basin_table<-basin_table %>% 
+  mutate(crypt = ifelse(MAIN_BAS %in% crypt_basins$MAIN_BAS, 1, 0))
+```
+
+```{r}
+write.csv(basin_table, here("results/Basin_results_table.csv"))
+```
+
+## Country results
+Number of basins per country
+
+```{r}
+n_basin_iso3<-dat %>% 
+  group_by(ISO3) %>% 
+  summarise(n_basin = length(unique(MAIN_BAS)))
+```
+
+Number of transboundary basins per country
+
+```{r}
+trans_basins<-basin_table %>% 
+  filter(n_iso3 >1)
+
+n_basin_iso3_trans<- dat %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
+  group_by(ISO3) %>% 
+  summarise(n_trans_basin = length(unique(MAIN_BAS)))
+```
+
+Number of cryptorheic basins per country
+
+```{r}
+crypt_basins<-basin_table %>% 
+  filter(crypt == 1)
+
+n_crypt_basins_iso3<-dat %>% 
+  filter(MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(ISO3) %>% 
+  summarise(n_crypt_basin = length(unique(MAIN_BAS)))
+```
+
+Number of transboundary cryptorheic basins
+
+```{r}
+n_trans_crypt_basins_iso3<-dat %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
+    MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(ISO3) %>% 
+  summarise(n_trans_crypt_basin = length(unique(MAIN_BAS)))
+```
+
+Proportion transboundary basins
+Proprotion of cryptorheic basins
+Proportion transboundary cryptorheic basins
+```{r}
+iso3_basins<-full_join(n_basin_iso3, n_basin_iso3_trans) %>% 
+  full_join(., n_crypt_basins_iso3) %>% 
+  full_join(., n_trans_crypt_basins_iso3) %>% 
+  mutate(prop_trans = n_trans_basin/n_basin,
+         prop_crypt = n_crypt_basin/n_basin,
+         prop_trans_crypt = n_trans_crypt_basin/n_basin)
+```
+Total sediment per country
+
+```{r}
+iso3_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(ISO3) %>% 
+  summarise(sed_iso3 = sum(sed_sum, na.rm = T))
+```
+
+Total transboundary sediment per country
+
+```{r}
+trans_iso3_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
+  group_by(ISO3) %>% 
+  summarise(trans_sed_iso3 = sum(sed_sum, na.rm = T))
+```
+
+Total cryptorheic sediment
+
+```{r}
+crypt_iso3_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(ISO3) %>% 
+  summarise(crypt_sed_iso3 = sum(sed_sum, na.rm = T))
+```
+
+Total transboundary cryptorheic sediment
+
+```{r}
+trans_crypt_iso3_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
+    MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(ISO3) %>% 
+  summarise(trans_crypt_sed_iso3 = sum(sed_sum, na.rm = T))
+```
+
+Proportion transboundary sediment
+Proportion cryptorheic sediment
+Proportion transboundary cryptorheic sediment
+
+```{r}
+iso3_basins_sed<-full_join(iso3_sed, trans_iso3_sed) %>% 
+  full_join(., crypt_iso3_sed) %>% 
+  full_join(., trans_crypt_iso3_sed) %>% 
+  mutate(prop_trans_sed = trans_sed_iso3/sed_iso3,
+         prop_crypt_sed =crypt_sed_iso3/sed_iso3,
+         prop_trans_crypt_sed = trans_crypt_sed_iso3/sed_iso3)
+```
+
+```{r}
+iso3_table<-full_join(iso3_basins, iso3_basins_sed)
+```
+
+```{r}
+write.csv(iso3_table, here("results/Country_terrestrial_results_table.csv"))
+```
+
+
