@@ -1,0 +1,162 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "09/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(tmap)
+library(sf)
+library(patchwork)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(circlize)
+#devtools::install_github("https://github.com/mattflor/chorddiag")
+library(chorddiag)
+library(randomcoloR)
+
+t_crs<-'ESRI:54009'
+
+```
+
+# Terrestrial mismatch plot
+
+Mismatch in where the sediment comes form and where the pourpoint is
+
+At this point we don't care whether it is cryptoheric or not
+
+```{r}
+list_mismatch<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial", full.names = T)
+  
+mismatch<-do.call(rbind,
+          lapply(list_mismatch, read.csv))
+
+```
+
+Mismatch between country that produces majority of sediment and where sediment is released
+```{r}
+sub_mismatch<-mismatch %>% 
+  filter(!pp_iso3 == "character(0)",
+    max_sed_iso3 != pp_iso3,
+          nchar(pp_iso3)==3)
+
+length(unique(sub_mismatch$MAIN_BAS))
+```
+
+
+```{r}
+maj_sub_mismatch<-sub_mismatch %>% 
+  filter(prop_sed>0.9)
+
+length(unique(maj_sub_mismatch$MAIN_BAS))
+```
+
+```{r}
+test<-unique(maj_sub_mismatch$ISO3)
+test2<-test[1:10]
+
+test_df<-maj_sub_mismatch %>% 
+  filter(ISO3 %in% test2) %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, prop_sed, sed_sum) %>% 
+  mutate(sed_mt = (prop_sed * sed_sum)/1000000)
+```
+
+```{r}
+plot_data<-test_df %>% 
+  dplyr::select(-ISO3) %>% 
+  mutate(pp_c = countrycode(pp_iso3, "iso3c", "country.name"),
+         max_sed_c = countrycode(max_sed_iso3, "iso3c", "country.name")) %>% 
+  group_by(pp_c, max_sed_c) %>% 
+  summarise(total_sed = sum(sed_mt, na.rm = T)) #%>% 
+  #pivot_wider(., names_from = "pp_c", values_from = "total_sed") 
+
+# Add in missing countries
+cols<-unique(plot_data$pp_c)
+rows<-unique(plot_data$max_sed_c)
+col_mis<-rows[!rows %in% cols]
+row_mis<-cols[!cols %in% rows]
+
+add_col<-data.frame(pp_c = col_mis, max_sed_c = NA, total_sed = 0)
+add_row<-data.frame(pp_c = NA, max_sed_c = row_mis, total_sed = 0)
+
+plot_data2<-rbind(plot_data, add_col) %>% 
+  rbind(., add_row) %>% 
+  pivot_wider(., names_from = "pp_c", values_from = "total_sed") %>% 
+  filter(!is.na(max_sed_c) == T)
+
+plot_data2<-plot_data2[,-ncol(plot_data2)]
+
+plot_data2[is.na(plot_data2)] = 0
+
+# Make sure col names and row names match up
+plot_data3<-plot_data2 %>% 
+  dplyr::select(max_sed_c,"Libya","Togo","Djibouti","Eritrea","Guinea","Tanzania", "Algeria","Western Sahara","Zimbabwe","Ghana","Benin","Ethiopia","Guinea-Bissau","Kenya","Liberia","Mauritania","Morocco","Mozambique", "Niger", "Sudan","Tunisia")
+
+m_char<-as.matrix(plot_data3)
+
+m_plot<-data.matrix(plot_data3)
+
+rownames(m_plot) <- m_char[,1]
+m_plot <- m_plot[,-1]
+```
+
+```{r}
+# A vector of 4 colors for 4 groups
+countries <- row.names(m_plot)
+
+dimnames(m_plot) <- list(source = countries,
+                    sink = countries)
+
+n <- length(countries)
+palette <- distinctColorPalette(n)
+groupColors <- palette
+```
+
+```{r}
+p <- chorddiag(m_plot, groupColors = groupColors, groupPadding = 5, groupnamePadding = 20, groupnameFontsize = 10)
+p
+```
+```{r}
+ library(htmlwidgets)
+ saveWidget(p, file=here("figures/Terrestrial_trans_chord_interactive.html"))
+```
+
+```{r}
+library(webshot)
+saveWidget(x, "temp.html")
+webshot("Terrestrial_trans_chord_interactive.html", "temp.png")
+```
+
+# Create plot
+
+```{r}
+# data
+m <- matrix(c(11975,  5871, 8916, 2868,
+              1951, 10048, 2060, 6171,
+              8010, 16145, 8090, 8045,
+              1013,   990,  940, 6907),
+            byrow = TRUE,
+            nrow = 4, ncol = 4)
+
+```
+
+```{r}
+# A vector of 4 colors for 4 groups
+haircolors <- c("black", "blonde", "brown", "red")
+dimnames(m) <- list(have = haircolors,
+                    prefer = haircolors)
+groupColors <- c("#000000", "#FFDD89", "#957244", "#F26223")
+
+# Build the chord diagram:
+p <- chorddiag(m, groupColors = groupColors, groupnamePadding = 20)
+p
+```
+
