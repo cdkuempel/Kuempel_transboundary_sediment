@@ -25,29 +25,16 @@ t_crs<-'ESRI:54009'
 
 # Load data
 
-Number of countries per basin
 ```{r}
-list_prop_basin<-list.files(here("output_data"), pattern = "Prop_basin_iso3", full.names = TRUE)
-
-sub_prop_basin<-list_prop_basin[grep(list_prop_basin, pattern = ".csv")] 
-
-dat <- 
-  do.call(rbind,
-          lapply(sub_prop_basin, read.csv))
-
+basin_table<-read.csv(here("results/Basin_results_table.csv"))
 ```
+
 
 Basin shapefile
 ```{r}
 basins<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
   st_make_valid()
 ```
-```{r}
-iso3_basins<-dat %>% 
-  group_by(MAIN_BAS) %>% 
-  summarise(n_iso3 = length(unique(ISO3))) 
-```
-
 # Country shapefile
 
 ```{r}
@@ -55,28 +42,17 @@ world <- ne_countries(scale = "medium", returnclass = "sf") %>%
   dplyr::select(iso_a3) %>% 
   rename(ISO3 = iso_a3) %>% 
   st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs")
-#class(world)
 ```
-```{r}
-#gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>% 
-#  st_make_valid() %>% 
-#  st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs")
-  #st_transform(., "+proj=eck4 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
-```
-
 
 # Figure 1
 
-
 ```{r}
-shp_basins<-full_join(basins, iso3_basins) %>% 
+shp_basins<-full_join(basins, basin_table) %>% 
   #st_transform("+proj=eck4 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs") %>% 
   st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs")
 ```
 
 ```{r}
-#breaks<-c(1,2,3,4,5, 6,7,8,9,12,14,19)
-#breaks<-c(1,5,10,15,20)
 breaks<-c(0,2,4,6,8,10,12,14,16,18,20)
 
 
@@ -86,7 +62,7 @@ n_map<-tm_shape(shp_basins) +
     tm_fill("n_iso3", 
                 breaks = breaks,
                 style = "cont", 
-                title = "                                Number of countries",
+                title = "                                       Number of countries",
                 palette = "-RdYlBu",
             legend.is.portrait = FALSE) +
   tm_borders(lwd = 0.2,
