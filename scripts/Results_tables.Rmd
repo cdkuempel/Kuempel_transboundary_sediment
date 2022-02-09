@@ -136,7 +136,7 @@ Number of basins per country
 
 ```{r}
 n_basin_iso3<-dat %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(n_basin = length(unique(MAIN_BAS)))
 ```
 
@@ -148,7 +148,7 @@ trans_basins<-basin_table %>%
 
 n_basin_iso3_trans<- dat %>% 
   filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(n_trans_basin = length(unique(MAIN_BAS)))
 ```
 
@@ -160,7 +160,7 @@ crypt_basins<-basin_table %>%
 
 n_crypt_basins_iso3<-dat %>% 
   filter(MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(n_crypt_basin = length(unique(MAIN_BAS)))
 ```
 
@@ -170,7 +170,7 @@ Number of transboundary cryptorheic basins
 n_trans_crypt_basins_iso3<-dat %>% 
   filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
     MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(n_trans_crypt_basin = length(unique(MAIN_BAS)))
 ```
 
@@ -191,7 +191,7 @@ Total sediment per country
 iso3_sed<-sed_dat %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry) %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(sed_iso3 = sum(sed_sum, na.rm = T))
 ```
 
@@ -202,7 +202,7 @@ trans_iso3_sed<-sed_dat %>%
   as.data.frame() %>% 
   dplyr::select(-geometry) %>% 
   filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(trans_sed_iso3 = sum(sed_sum, na.rm = T))
 ```
 
@@ -213,7 +213,7 @@ crypt_iso3_sed<-sed_dat %>%
   as.data.frame() %>% 
   dplyr::select(-geometry) %>% 
   filter(MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(crypt_sed_iso3 = sum(sed_sum, na.rm = T))
 ```
 
@@ -225,7 +225,7 @@ trans_crypt_iso3_sed<-sed_dat %>%
   dplyr::select(-geometry) %>% 
   filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
     MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
-  group_by(ISO3) %>% 
+  group_by(ISO3, Continent) %>% 
   summarise(trans_crypt_sed_iso3 = sum(sed_sum, na.rm = T))
 ```
 
@@ -251,3 +251,121 @@ write.csv(iso3_table, here("results/Country_terrestrial_results_table.csv"))
 ```
 
 
+## Continent results
+Number of basins per country
+
+```{r}
+n_basin_cont<-dat %>% 
+  group_by(Continent) %>% 
+  summarise(n_basin = length(unique(MAIN_BAS)))
+```
+
+Number of transboundary basins per country
+
+```{r}
+trans_basins<-basin_table %>% 
+  filter(n_iso3 >1)
+
+n_basin_cont_trans<- dat %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
+  group_by(Continent) %>% 
+  summarise(n_trans_basin = length(unique(MAIN_BAS)))
+```
+
+Number of cryptorheic basins per country
+
+```{r}
+crypt_basins<-basin_table %>% 
+  filter(crypt == 1)
+
+n_crypt_basins_cont<-dat %>% 
+  filter(MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(Continent) %>% 
+  summarise(n_crypt_basin = length(unique(MAIN_BAS)))
+```
+
+Number of transboundary cryptorheic basins
+
+```{r}
+n_trans_crypt_basins_cont<-dat %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
+    MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(Continent) %>% 
+  summarise(n_trans_crypt_basin = length(unique(MAIN_BAS)))
+```
+
+Proportion transboundary basins
+Proprotion of cryptorheic basins
+Proportion transboundary cryptorheic basins
+```{r}
+cont_basins<-full_join(n_basin_cont, n_basin_cont_trans) %>% 
+  full_join(., n_crypt_basins_cont) %>% 
+  full_join(., n_trans_crypt_basins_cont) %>% 
+  mutate(prop_trans = n_trans_basin/n_basin,
+         prop_crypt = n_crypt_basin/n_basin,
+         prop_trans_crypt = n_trans_crypt_basin/n_basin)
+```
+Total sediment per country
+
+```{r}
+cont_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(Continent) %>% 
+  summarise(sed_cont = sum(sed_sum, na.rm = T))
+```
+
+Total transboundary sediment per country
+
+```{r}
+trans_cont_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
+  group_by(Continent) %>% 
+  summarise(trans_sed_cont = sum(sed_sum, na.rm = T))
+```
+
+Total cryptorheic sediment
+
+```{r}
+crypt_cont_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(Continent) %>% 
+  summarise(crypt_sed_cont = sum(sed_sum, na.rm = T))
+```
+
+Total transboundary cryptorheic sediment
+
+```{r}
+trans_crypt_cont_sed<-sed_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
+    MAIN_BAS %in% crypt_basins$MAIN_BAS) %>% 
+  group_by(Continent) %>% 
+  summarise(trans_crypt_sed_cont = sum(sed_sum, na.rm = T))
+```
+
+Proportion transboundary sediment
+Proportion cryptorheic sediment
+Proportion transboundary cryptorheic sediment
+
+```{r}
+cont_basins_sed<-full_join(cont_sed, trans_cont_sed) %>% 
+  full_join(., crypt_cont_sed) %>% 
+  full_join(., trans_crypt_cont_sed) %>% 
+  mutate(prop_trans_sed = trans_sed_cont/sed_cont,
+         prop_crypt_sed =crypt_sed_cont/sed_cont,
+         prop_trans_crypt_sed = trans_crypt_sed_cont/sed_cont)
+```
+
+```{r}
+continent_table<-full_join(cont_basins, cont_basins_sed)
+```
+
+```{r}
+write.csv(continent_table, here("results/Continent_terrestrial_results_table.csv"))
+```
