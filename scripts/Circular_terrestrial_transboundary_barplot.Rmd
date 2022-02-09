@@ -27,148 +27,42 @@ t_crs<-'ESRI:54009'
 
 # Load data
 
-Number of countries per basin
 ```{r}
-list_prop_basin<-list.files(here("output_data"), pattern = "Prop_basin_iso3", full.names = TRUE)
-
-sub_prop_basin<-list_prop_basin[grep(list_prop_basin, pattern = ".csv")] 
-
-dat <- 
-  do.call(rbind,
-          lapply(sub_prop_basin, read.csv))
+iso3_table<-read.csv(here("results/Country_terrestrial_results_table.csv"))
 
 ```
 
-```{r}
-#Count number of countries in each watershed
-iso3_basins<-dat %>% 
-  group_by(MAIN_BAS) %>% 
-  summarise(n_iso3 = length(unique(ISO3))) 
-
-trans_iso3_basins<-iso3_basins %>% 
-  filter(n_iso3>1)
-```
 # Country radial chart
 
-```{r}
-iso3_cont_basins<-dat %>% 
-  #filter(!duplicated(MAIN_BAS)) %>% 
-  group_by(ISO3, Continent) %>% 
-  summarise(n_basins = length(unique(MAIN_BAS)))
-
-trans_basins<-dat %>% 
-  filter(n >1)
-
-iso3_trans_basins<-dat %>% 
-  filter(MAIN_BAS %in% trans_basins$MAIN_BAS) %>% 
-       #  !duplicated(MAIN_BAS)) %>% 
-  group_by(ISO3, Continent) %>% 
-  summarise(n_trans = length(unique(MAIN_BAS)))
-
-iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>% 
-  mutate(prop_trans = n_trans/n_basins)
-```
-
-```{r}
-#list_crypt_sed_basin<-list.files(here("output_data/Transboundary"), pattern = #"Terrestrial_transboundary_", full.names = TRUE)
-
-#crypt_sed_dat <- 
-#  do.call(rbind,
-#          lapply(list_crypt_sed_basin, read.csv)) %>% 
-#  filter(ENDORHE == 1,
-#         n_iso3 >1)
-
-#trans_crypt_sed_sum<-crypt_sed_dat %>% 
-#  group_by(ISO3, Continent, MAIN_BAS) %>% 
-#  filter(!duplicated(MAIN_BAS))
-```
-
-```{r}
-pp_loc_list<-list.files(here("output_data/Pourpoints"), pattern = "Missing_pp_chunk", full.names = T)
-
-pp_loc_mis<-
-  do.call(rbind,
-          lapply(pp_loc_list, read.csv))
-
-pp_all<-read.csv(here("output_data/Pourpoints/PP_location_all.csv"))
-
-pp_done<-rbind(pp_all, pp_loc_mis) %>% 
-  dplyr::select(HYRIV_I, NEXT_DO, MAIN_RI, rv_d_3_, ENDORHE, MAIN_BAS)
-
-```
-
-```{r}
-list_sed_basin<-list.files(here("output_data/Sediment"), pattern = ".shp", full.names = T)
-
-#list_sed_basin<-list.files(here("output_data/Transboundary"), pattern = #"Terrestrial_transboundary_", full.names = TRUE)
-
-sed_dat <- 
-  do.call(rbind,
-          lapply(list_sed_basin, st_read)) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry)
-```
-
-```{r}
-crypt<-left_join(sed_dat, pp_done, by = "MAIN_BAS") %>% 
-  filter(ENDORHE == 0)
-
-length(unique(crypt$MAIN_BAS))/23934
-```
-
-```{r}
-trans_crypt<-crypt %>% 
-  filter(MAIN_BAS %in% trans_basins$MAIN_BAS)
-
-length(unique(trans_crypt$MAIN_BAS))
-length(unique(trans_crypt$MAIN_BAS))/length(unique(trans_basins$MAIN_BAS))
-```
-
-```{r}
-iso3_crypt_trans_basins<- trans_crypt %>% 
-  #filter(!duplicated(MAIN_BAS)) %>% 
-  group_by(ISO3, Continent) %>% 
-  summarise(n_crypt_basins = length(unique(MAIN_BAS)))
-
-#iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>%
-#  full_join(., iso3_crypt_trans_basins) %>% 
-#  mutate(n_single = n_basins - n_trans) %>% 
-#  dplyr::select(-n_basins) %>% 
-#  pivot_longer(., cols = c(n_single, n_trans, n_crypt_basins), names_to = #"type", values_to = "n") %>% 
-#  mutate(labels = ifelse(type == "n_single","Single", 
-#                         ifelse(type == "n_trans", "Transboundary", #"Trans-cryptorheic"))) %>% 
-#  ungroup()
 
 
-#%>% 
-#  mutate(prop_trans = n_trans/n_basins,
-#         prop_crypt = n_crypt_basins/n_basins,
-#         prop_trans_crypt = n_crypt_basins/n_trans)
-```
 
 ```{r}
 # Create dataset
-
-join_df<-full_join(iso3_df, iso3_crypt_trans_basins)
-
-data<-join_df %>% 
-  #filter(labels == "Transboundary") #%>% 
-  mutate(Country = countrycode(ISO3, "iso3c", "country.name"),
+data<-iso3_table %>% 
+  mutate(n_trans_basin= ifelse(is.na(n_trans_basin) == T, 0, n_trans_basin),
+    Country = countrycode(ISO3, "iso3c", "country.name"),
         perc_trans = prop_trans*100,
-        perc_crypt_trans = (n_crypt_basins/n_trans)*100,
-        perc_crypt_trans = ifelse(is.na(perc_crypt_trans) == T, 0, perc_crypt_trans),
-        Country = ifelse(Country == "Micronesia (Federated States of)", "Micronesia", Country)) %>% 
+        perc_trans_crypt = prop_trans_crypt*100,
+        perc_trans_crypt = ifelse(is.na(perc_trans_crypt) == T, 0, perc_trans_crypt),
+        Country = ifelse(Country == "Micronesia (Federated States of)", "Micronesia", 
+                         ifelse(Country == "United States Minor Outlying Islands (the)", "US Minor Outlying Islands)", 
+                                ifelse(Country == "Hong Kong SAR China", "Hong Kong", 
+                                       ifelse(Country == "Myanmar (Burma)", "Myanmar", Country)))),
+        prop_trans_sed = ifelse(is.na(prop_trans_sed) == T, 0, prop_trans_sed),
+        perc_trans_sed = prop_trans_sed*100,
+        Continent = as.factor(Continent)) %>% 
   rename(group = Continent,
          individual = Country,
          value = perc_trans,
-         fill_val = perc_crypt_trans) %>% 
-  dplyr::select(-n_basins, -n_trans, -prop_trans, -ISO3)
+         fill_val = perc_trans_sed) %>% 
+  dplyr::select(group, individual, value, fill_val)
 
 data<- data %>% arrange(group,value)
 
 # Set a number of 'empty bar' to add at the end of each group
 empty_bar=3
-to_add = data.frame( matrix(NA, empty_bar*length(unique(data$group)), ncol(data)) )
+to_add = data.frame(matrix(NA, empty_bar*length(levels(data$group)), ncol(data)) )
 colnames(to_add) = colnames(data)
 to_add$group=rep(levels(data$group), each=empty_bar)
 data=rbind(data, to_add) 
@@ -189,15 +83,15 @@ base_data=data %>%
   summarize(start=min(id), end=max(id) - empty_bar) %>% 
   rowwise() %>% 
   mutate(title=mean(c(start, end)),
-         group = ifelse(group == "North America","North \nAmerica",
-                        ifelse(group == "South America", "South \nAmerica", group))) 
+         group = as.character(group),
+         group = ifelse(group == 'North America','North \nAmerica',
+                        ifelse(group == 'South America', 'South \nAmerica', group)))
  
 # prepare a data frame for grid (scales)
 grid_data = base_data
 grid_data$end = grid_data$end[ c( nrow(grid_data), 1:nrow(grid_data)-1)] + 1
 grid_data$start = grid_data$start - 1
 grid_data=grid_data[-1,]
- 
 
 ```
 
@@ -228,13 +122,13 @@ p = ggplot(data, aes(x=as.factor(id), y=value, fill = fill_val)) +       # Note 
     panel.grid = element_blank(),
     plot.margin = unit(rep(-1,4), "cm") 
   ) +
-  labs(fill = "Transboundary\ncryptorheic (%)") +
+  labs(fill = "Transboundary\nsediment (%)") +
   coord_polar() + 
-  geom_text(data=label_data, aes(x=id, y=value+5, label=individual, hjust=hjust), color="black", fontface="bold",alpha=0.6, size=2.5, angle= label_data$angle, inherit.aes = FALSE ) +
+  geom_text(data=label_data, aes(x=id, y=value+5, label=individual, hjust=hjust), color="black", fontface="bold",alpha=0.6, size=2.2, angle= label_data$angle, inherit.aes = FALSE ) +
   
   # Add base line information
   geom_segment(data=base_data, aes(x = start, y = -5, xend = end, yend = -5), colour = "black", alpha=0.8, size=0.6 , inherit.aes = FALSE )  +
-  geom_text(data=base_data, aes(x = title, y = -18, label=group), hjust=c(0.5,0.5,0.2,0.2,0.2,0), vjust = c(0,0,0,0,0,0),colour = "black", alpha=0.8, size=3, fontface="bold", inherit.aes = FALSE)
+  geom_text(data=base_data, aes(x = title, y = -18, label=group), hjust=c(0.5,0.5,0.2,0.2,0.2,0), vjust = c(0,0,0,0,0,0.5),colour = "black", alpha=0.8, size=3, fontface="bold", inherit.aes = FALSE)
  
 ```
 
@@ -248,7 +142,7 @@ ggsave(here("figures/Circular_terrestrial_transboundary_barplot.png"), dpi = 300
 ```
 
 
-
+# CAN REMOTE ALL BELOW I THINK?
 
 
 
