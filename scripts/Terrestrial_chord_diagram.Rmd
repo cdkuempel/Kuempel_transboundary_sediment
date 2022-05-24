@@ -46,74 +46,116 @@ Mismatch between country that produces majority of sediment and where sediment i
 sub_mismatch<-mismatch %>% 
   filter(!pp_iso3 == "character(0)",
     max_sed_iso3 != pp_iso3,
-          nchar(pp_iso3)==3)
+          nchar(pp_iso3)==3,
+    !prop_sed == 0)
 
 length(unique(sub_mismatch$MAIN_BAS))
 ```
 
-
 ```{r}
-maj_sub_mismatch<-sub_mismatch %>% 
-  filter(prop_sed>0.9)
+africa<-sub_mismatch %>% 
+  filter(Continent == "Africa",
+         !ISO3 == pp_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000) %>% 
+  filter(sed_mt>0)
 
-length(unique(maj_sub_mismatch$MAIN_BAS))
+#length(unique(africa$MAIN_BAS))
+
+asia<-sub_mismatch %>% 
+  filter(Continent == "Asia",
+         !ISO3 == pp_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000) 
+
+#length(unique(asia$MAIN_BAS))
+
+europe<-sub_mismatch %>% 
+  filter(Continent == "Europe",
+         !ISO3 == pp_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000)
+
+#length(unique(europe$MAIN_BAS))
+
+na<-sub_mismatch %>% 
+  filter(Continent == "North America",
+         !ISO3 == pp_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000)
+
+#length(unique(na$MAIN_BAS))
+
+sa<-sub_mismatch %>% 
+  filter(Continent == "South America",
+         !ISO3 == pp_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000)
+
+#length(unique(sa$MAIN_BAS))
 ```
 
-```{r}
-test<-unique(maj_sub_mismatch$ISO3)
-test2<-test[1:10]
 
-test_df<-maj_sub_mismatch %>% 
-  filter(ISO3 %in% test2) %>% 
-  dplyr::select(ISO3, pp_iso3, max_sed_iso3, prop_sed, sed_sum) %>% 
-  mutate(sed_mt = (prop_sed * sed_sum)/1000000)
-```
 
 ```{r}
-plot_data<-test_df %>% 
-  dplyr::select(-ISO3) %>% 
+africa_plot<-africa %>% 
+ # dplyr::select(-max_sed_c) %>% 
   mutate(pp_c = countrycode(pp_iso3, "iso3c", "country.name"),
-         max_sed_c = countrycode(max_sed_iso3, "iso3c", "country.name")) %>% 
-  group_by(pp_c, max_sed_c) %>% 
-  summarise(total_sed = sum(sed_mt, na.rm = T)) #%>% 
-  #pivot_wider(., names_from = "pp_c", values_from = "total_sed") 
+         country = countrycode(ISO3, "iso3c", "country.name")) %>% 
+  group_by(country, pp_c) %>% 
+  summarise(total_sed = sum(sed_mt, na.rm = T)) 
+
+africa_plot<-africa_plot %>% 
+  arrange(desc(total_sed)) %>% 
+  filter(total_sed>70)
+  
+
 
 # Add in missing countries
-cols<-unique(plot_data$pp_c)
-rows<-unique(plot_data$max_sed_c)
-col_mis<-rows[!rows %in% cols]
+cols<-unique(africa_plot$country)
+rows<-unique(africa_plot$pp_c)
+
 row_mis<-cols[!cols %in% rows]
+col_mis<-rows[!rows %in% cols]
 
-add_col<-data.frame(pp_c = col_mis, max_sed_c = NA, total_sed = 0)
-add_row<-data.frame(pp_c = NA, max_sed_c = row_mis, total_sed = 0)
+add_col<-data.frame(pp_c = NA, country = col_mis, total_sed = 0)
+add_row<-data.frame(pp_c = row_mis, country = NA, total_sed = 0)
 
-plot_data2<-rbind(plot_data, add_col) %>% 
+africa_plot2<-rbind(africa_plot, add_col) %>% 
   rbind(., add_row) %>% 
-  pivot_wider(., names_from = "pp_c", values_from = "total_sed") %>% 
-  filter(!is.na(max_sed_c) == T)
+  pivot_wider(., names_from = "country", values_from = "total_sed") 
 
-plot_data2<-plot_data2[,-ncol(plot_data2)]
+africa_plot2<-africa_plot2 %>% 
+  dplyr::select(-"NA") %>% 
+  filter(is.na(pp_c) == F)
 
-plot_data2[is.na(plot_data2)] = 0
+africa_plot2[is.na(africa_plot2)] = 0
 
 # Make sure col names and row names match up
-plot_data3<-plot_data2 %>% 
-  dplyr::select(max_sed_c,"Libya","Togo","Djibouti","Eritrea","Guinea","Tanzania", "Algeria","Western Sahara","Zimbabwe","Ghana","Benin","Ethiopia","Guinea-Bissau","Kenya","Liberia","Mauritania","Morocco","Mozambique", "Niger", "Sudan","Tunisia")
+africa_plot3<-africa_plot2 %>% 
+  select(sort(colnames(africa_plot2)))
+ # dplyr::select(max_sed_c,"Libya","Togo","Djibouti","Eritrea","Guinea","Tanzania", "Algeria","Western Sahara","Zimbabwe","Ghana","Benin","Ethiopia","Guinea-Bissau","Kenya","Liberia","Mauritania","Morocco","Mozambique", "Niger", "Sudan","Tunisia")
 
-m_char<-as.matrix(plot_data3)
+africa_char<-as.matrix(africa_plot3)
 
-m_plot<-data.matrix(plot_data3)
+africa_mat<-data.matrix(africa_plot3)
 
-rownames(m_plot) <- m_char[,1]
-m_plot <- m_plot[,-1]
+rownames(africa_mat) <- africa_char[,"pp_c"]
+africa_mat <- africa_mat[,-which(colnames(africa_mat) == "pp_c")] #remove pp_c column
 ```
 
 ```{r}
 # A vector of 4 colors for 4 groups
-countries <- row.names(m_plot)
+source <- row.names(africa_mat)
+sink<-colnames(africa_mat)
 
-dimnames(m_plot) <- list(source = countries,
-                    sink = countries)
+dimnames(africa_mat) <- list(source = source,
+                    sink = sink)
 
 n <- length(countries)
 palette <- distinctColorPalette(n)
@@ -121,7 +163,14 @@ groupColors <- palette
 ```
 
 ```{r}
-p <- chorddiag(m_plot, groupColors = groupColors, groupPadding = 5, groupnamePadding = 20, groupnameFontsize = 10)
+test<-africa %>% 
+  filter(ISO3 == "DZA", 
+         pp_iso3 == "LBY")
+```
+
+
+```{r}
+p <- chorddiag(africa_mat, groupColors = groupColors, groupPadding = 5, groupnamePadding = 20, groupnameFontsize = 10)
 p
 ```
 ```{r}
