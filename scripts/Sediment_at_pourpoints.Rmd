@@ -63,11 +63,7 @@ pp_all<-read.csv(here("output_data/Pourpoints/PP_location_all.csv"))
 pp_done<-rbind(pp_all, pp_loc_mis)
 ```
 
-# For loop for sediment distribution
-
-```{r}
-continents<-c("Africa", "Asia", "Europe", "North America", "Oceania", "South America")
-```
+# Sediment distribution
 
 ```{r}
 #dist_sed<-function(x){
@@ -100,10 +96,32 @@ bas_pp_dist<- bas_pp %>%
 #test<-bas_pp_dist %>% 
 #  filter(MAIN_BAS == 1080031170)
 
-st_write(bas_pp_dist,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.shp")), driver = "GeoJSON", delete_layer = T)
+st_write(bas_pp_dist,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.gpkg")), driver = "GPKG", delete_layer = T)
 
+save(data1, file = "data.RData")
 ```
 
+For loop to save
+
+```{r}
+continents<-c("Africa", "Asia", "Europe", "North America", "Oceania", "South America")
+```
+
+
+```{r}
+for(i in 1:length(continents)){
+  
+  name<- continents[i]
+  
+  sub<-bas_pp_dist %>% 
+    filter(Continent == name)
+  
+  st_write(sub,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_",name, ".shp")), delete_layer = T)
+  
+  st_write(sub,here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_",name, ".shp")), driver = "GeoJSON", delete_layer = T)
+  
+}
+```
 
 ```{r}
 #pbmclapply(continents, dist_sed, mc.cores = length(continents), mc.style = #"ETA")
