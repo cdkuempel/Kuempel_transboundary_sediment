@@ -1,0 +1,118 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: '2022-05-04'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Packages
+
+```{r}
+library(here)
+library(tidyverse)
+library(raster)
+library(sf)
+library(gdalUtils)
+library(nngeo)
+
+t_crs<-'ESRI:54009'
+```
+
+# EEZ layer
+
+```{r}
+eez<-st_read(here("raw_data/EEZ/eez_simple.shp")) %>% 
+  st_make_valid()
+
+eez_moll<- st_transform(eez, crs = t_crs)
+```
+
+# Pourpoints
+
+```{r}
+pp<-st_read(here("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.gpkg")) %>% 
+  filter(sed_pp>0)
+```
+
+
+# Get pourpoints that are within 80 km distance from EEZ of another country
+
+```{r}
+country<-unique(pp$ISO3)
+
+pp_close<-c()
+
+for(i in 53:length(country)){
+
+  # Subset to pourpoints of one country  
+  sub_pp<-pp %>% 
+    filter(ISO3 == country[[i]])
+  
+  # Get country name
+  name<-unique(sub_pp$ISO3)
+  
+  print(name)
+  
+  # Remove that country from EEZ
+  sub_eez<-eez_moll %>% 
+    filter(!rgn_key == name)
+  
+  # Remove any empty polygons
+  
+  sub_pp<-sub_pp[!st_is_empty(sub_pp),,drop=FALSE]
+
+  # Measure distance from pourpoints to nearest countries
+  
+  test2<-st_nn(sub_pp, sub_eez, k = 1, parallel = 5, returnDist = TRUE)
+  
+  # Unlist and change to data frame
+  test3<-test2$dist %>% 
+    unlist() %>% 
+    as.data.frame() %>% 
+    rename(dist = '.')
+  
+  # Join distances to pourpoint information
+  sub_pp2<-cbind(sub_pp, test3) %>% 
+    filter(dist <= 80000) #plume maximum distance is 80 km so we only keep points within this range of distance
+  
+  pp_close<-rbind(pp_close, sub_pp2)
+}
+
+st_write(pp_close, here("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint_80km_dist.gpkg"))
+```
+
+
+
+
+
+
+
+
+
+# Merge plume rasters of each continent by country
+
+```{r}
+ras_list<-list.files(here("output_data/Sediment_plumes"), pattern = "N_plumes", full.names = T)
+```
+
+```{r}
+mosaic_rasters(gdalfile= ras_list,dst_dataset=here("output_data/Sediment_plumes/Sediment_plumes_global.tif"),of="GTiff")
+```
+# Global raster
+
+```{r}
+glob_ras<-raster(here("output_data/Sediment_plumes/Sediment_plumes_global.tif"))
+```
+
+
+# Source of sediment
+
+
+# EEZ destination of sediment
+
+
+
