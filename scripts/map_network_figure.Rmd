@@ -1,0 +1,228 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: '2022-05-23'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("tidytuesdayR")
+library(ggnetwork)
+#devtools::install_github("yixuan/sysfonts")
+library(sysfonts)
+library(showtext)
+library(raster)
+library(grid)
+library(gridExtra)
+library(tidyverse)
+library(sp)
+library(rworldmap)
+library(sf)
+library(rgeos)
+library(countrycode)
+```
+# Load data
+
+```{r}
+tuesdata <- tidytuesdayR::tt_load('2022-05-17')
+tuesdata <- tidytuesdayR::tt_load(2022, week = 20)
+
+eurovision <- tuesdata$eurovision
+
+votes <- tuesdata$`eurovision-votes`
+```
+# Import Rubik font from Google
+
+```{r}
+font_add_google("Rubik", "Rubik")
+showtext_auto()
+```
+
+# Tidy data
+```{r}
+# tidy country names, remove those not to be used, and those with fewer than 10 occurrences
+vote_tidy <- votes %>%
+  mutate(to_country = gsub("The Netherlands", "Netherlands", to_country),
+         from_country = gsub("The Netherlands", "Netherlands", from_country)) %>%
+  filter(semi_final == "f", jury_or_televoting == "J", is.na(duplicate) == TRUE, !(to_country %in% c()), !(from_country %in% c())) %>%
+  mutate(both_country = paste0(pmin(to_country, from_country), pmax(to_country, from_country))) %>%
+  group_by(both_country) %>%
+  mutate(n = n(),
+            points = mean(points)) %>%
+  mutate(points = ifelse(n >= 10, points, 0)) %>%
+  dplyr::select(to_country, from_country, both_country, points) %>%
+  distinct()
+
+vote_tidy <- vote_tidy %>%
+  filter(from_country %in% vote_tidy$to_country) %>% 
+  mutate(to_iso3 = countrycode(to_country, "country.name", "iso3c"),
+         from_iso3 = countrycode(from_country, "country.name", "iso3c")) 
+
+vote_tidy<- vote_tidy %>% 
+  filter(is.na(to_iso3) == F,
+         is.na(from_iso3) == F)
+```
+
+# Get country lat/long centroids
+
+```{r}
+# get world map
+wmap <- getMap(resolution="high")
+
+# get centroids
+centroids <- gCentroid(wmap, byid=TRUE)
+
+# get a data.frame with centroids
+df <- as.data.frame(centroids)
+
+# convert row names into first column
+df <- tibble::rownames_to_column(df, "Country")
+
+# Add in ISO3 codes
+df <- df %>% 
+  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+  filter(is.na(iso3) == F) # remove countries without iso3 for now
+```
+
+# Join vote data with country data
+```{r}
+eurovis_countries <- data.frame(iso3 = c(unique(vote_tidy$to_iso3))) %>%
+  inner_join(df, by = c("iso3"))
+```
+
+# filter out countries that only appear in one column
+```{r}
+vote_filt <- vote_tidy %>%
+  filter(from_iso3 %in% eurovis_countries$iso3 & to_iso3 %in% eurovis_countries$iso3) 
+```
+
+# pivot data into matrix format
+```{r}
+vote_mat <- vote_filt %>%
+  select(-both_country) %>%
+  pivot_wider(id_cols = to_iso3, names_from = from_iso3, values_from = points) %>%
+  column_to_rownames(var="to_iso3")
+```
+```{r}
+# replace NA with 0
+vote_mat[is.na(vote_mat)] <- 0
+
+# create matrix
+vote_mat <- as.matrix(vote_mat)
+```
+
+# find mean points given both ways between countries
+```{r}
+ 
+vote_summ <- vote_filt %>%
+  mutate(both_country = paste0(pmin(to_iso3, from_iso3), pmax(to_iso3, from_iso3))) %>%
+  group_by(both_country) %>%
+  summarise(points = mean(points, na.rm = TRUE),
+            from_country = first(from_iso3),
+            to_country = first(to_iso3)) %>%
+  dplyr::select(-both_country)
+
+#vote_summ$from_country[5] <- "Albania"
+#vote_summ$to_country[5] <- "Belarus"
+```
+
+# long/lat join df for from_country
+```{r}
+country_join_a <- df %>%
+  dplyr::select(from_country = iso3, x, y)
+```
+
+# long/lat join df for to_country
+```{r}
+country_join_b <- df %>%
+  dplyr::select(to_country = iso3,x,y) %>% 
+  rename(xend = x,
+         yend = y)
+```
+
+```{r}
+# create df for plotting with both sets of long/lat values
+plot_df <- data.frame(from_country = rownames(vote_mat)) %>%
+  inner_join(vote_summ, by = "from_country") %>%
+  inner_join(country_join_a, by = c("from_country")) %>%
+  inner_join(country_join_b, by = c("to_country")) %>%
+  dplyr::select(-to_country, country = from_country) %>%
+  arrange(points)
+
+```
+
+# create top 5 section:
+
+```{r}
+top_table <- vote_summ %>%
+  arrange(-points) %>%
+  head(10) %>%
+  mutate(rank = 1:10)
+```
+
+# function to get Eurovision logo file
+
+SKIP THIS FOR NOW
+
+```{r}
+get_png <- function(filename) {
+  grid::rasterGrob(png::readPNG(filename), interpolate = TRUE)
+}
+```
+
+```{r}
+# save logo file
+logo <- get_png("2022 Week 20 - Eurovision/img/Eurovision_generic_white.png")
+```
+
+# create simple world map
+
+```{r}
+map <- map_data("world") %>% 
+  dplyr::select(x = long, y = lat, group, id = subregion) %>%
+  mutate(xend = 0,
+         yend = 0)
+```
+
+
+# build plot
+
+```{r}
+ggplot(plot_df, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_polygon(data = map, aes(group = group), fill = "#231f36", colour = "#2d2942") +
+  geom_edges(aes(alpha = (points ^ 2), size = (points ^ 3), color = points), curvature = -0.1) +
+  geom_nodes(size = 10, color = "#1c192c", alpha = 0.8) +
+  geom_nodetext(aes(label = str_wrap(toupper(country), 8)), family = "Rubik", size = 2.5, color = "white",
+                fontface = "bold") #+
+  geom_text(x = -20, y = 70, hjust = 0, color = "white", size = 7, family = "Rubik", label = "Eurovision's Strongest International Bonds") +
+  geom_text(x = -20, y = 68.7, hjust = 0, color = "white", size = 3.2, family = "Rubik", label = "Average points awarded between nations in Eurovision Grand Finals from 1975-2022") +
+  geom_text(x = 50, y = 30, hjust = 0.8, color = "white", angle = 25, size = 2.5, family = "Rubik", label = "AUSTRALIA") +
+  geom_text(x = 42, y = 71, hjust = 0.5, color = "white", size = 3, family = "Rubik", fontface = "bold",  label = "Top 10 country pairs by avg. points awarded") +
+  geom_point(data = top_table, aes(x = 42, y = 71 - (rank / 1), xend = NULL, yend = NULL, color = points, size = (points ^ 3) + 20)) +
+  geom_text(data = top_table, aes(x = 42, y = 71 - (rank / 1), xend = NULL, yend = NULL, label = round(points, 1)), size = 2, family = "Rubik", fontface = "bold", color = "#1c192c") + # points number text
+  geom_text(data = top_table, aes(x = 41, y = 71 - (rank / 1), xend = NULL, yend = NULL, label = toupper(to_country)), hjust = 1, color = "white", size = 2.5) + # left country
+  geom_text(data = top_table, aes(x = 43, y = 71 - (rank / 1), xend = NULL, yend = NULL, label = toupper(from_country)), hjust = 0, color = "white", size = 2.5) + # right country
+  scale_color_viridis_b() +
+  guides(size = "none", alpha = "none") +
+  labs(color = "", caption = "Country pairings with fewer than 10 points exchanges are not shown.\ndata: Eurovision / Data.World", x = "average points awarded") +
+  # ggtitle("THE POLITICS OF EUROVISION") +
+  theme_blank() +
+  coord_cartesian(xlim = c(-20, 50), ylim = c(30,70)) +
+  theme(
+    legend.position = "bottom",
+    axis.title.x = element_text(),
+    legend.key.width = unit(2, "cm"),
+    legend.key.height = unit(0.1, "cm"),
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.background = element_rect(fill = "#1c192c", color = "#1c192c"),
+    panel.background = element_rect(fill = "#1c192c", color = "#1c192c"),
+    text = element_text(family = "Rubik", color = "white"),
+    legend.background = element_rect(fill = "#1c192c"),
+    legend.margin = margin(t = -0.3, unit = "cm")
+  )
+```
+
