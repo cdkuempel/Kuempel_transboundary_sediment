@@ -142,7 +142,7 @@ ggsave(here("figures/Circular_terrestrial_transboundary_barplot.png"), dpi = 300
 ```
 
 
-# CAN REMOTE ALL BELOW I THINK?
+# CAN REMOvE ALL BELOW I THINK?
 
 
 
