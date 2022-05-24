@@ -1,0 +1,216 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: '2022-05-24'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("tidytuesdayR")
+library(ggnetwork)
+#devtools::install_github("yixuan/sysfonts")
+library(sysfonts)
+library(showtext)
+library(raster)
+library(grid)
+library(gridExtra)
+library(tidyverse)
+library(sp)
+library(rworldmap)
+library(sf)
+library(rgeos)
+library(countrycode)
+```
+# Load data
+
+```{r}
+list_mismatch<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial", full.names = T)
+  
+mismatch<-do.call(rbind,
+          lapply(list_mismatch, read.csv))
+```
+
+
+Mismatch between country that produces majority of sediment and where sediment is released
+```{r}
+sub_mismatch<-mismatch %>% 
+  filter(!pp_iso3 == "character(0)",
+    max_sed_iso3 != pp_iso3,
+          nchar(pp_iso3)==3,
+    !prop_sed == 0) %>% 
+  rename(from_country = ISO3,
+         to_country = pp_iso3)
+
+length(unique(sub_mismatch$MAIN_BAS))
+```
+
+# Try for Africa
+
+```{r}
+dat<-sub_mismatch %>% 
+ # filter(Continent == "Africa",
+  filter(!from_country == to_country,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(MAIN_BAS,from_country, to_country, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000) %>% 
+  filter(sed_mt>0) %>% 
+  group_by(from_country, to_country) %>% 
+  summarise(total_sed = sum(sed_mt, na.rm = T)) 
+```
+
+# Import Rubik font from Google
+
+```{r}
+font_add_google("Rubik", "Rubik")
+showtext_auto()
+```
+
+
+# Get country lat/long centroids
+
+```{r}
+# get world map
+wmap <- getMap(resolution="high")
+
+# get centroids
+centroids <- gCentroid(wmap, byid=TRUE)
+
+# get a data.frame with centroids
+df <- as.data.frame(centroids)
+
+# convert row names into first column
+df <- tibble::rownames_to_column(df, "Country")
+
+# Add in ISO3 codes
+df <- df %>% 
+  mutate(iso3 = countrycode(Country, "country.name", "iso3c")) %>% 
+  filter(is.na(iso3) == F) %>% # remove countries without iso3 for now
+  filter(!Country == "US Naval Base Guantanamo Bay")
+```
+
+# pivot data into matrix format
+```{r}
+mat <- dat %>%
+  pivot_wider(id_cols = from_country, names_from = to_country, values_from = total_sed) %>%
+  column_to_rownames(var="from_country")
+```
+
+```{r}
+# replace NA with 0
+mat[is.na(mat)] <- 0
+
+# create matrix
+mat <- as.matrix(mat)
+```
+
+
+# long/lat join df for from_country
+```{r}
+country_join_a <- df %>%
+  dplyr::select(from_country = iso3, x, y)
+```
+
+# long/lat join df for to_country
+```{r}
+country_join_b <- df %>%
+  dplyr::select(to_country = iso3,x,y) %>% 
+  rename(xend = x,
+         yend = y)
+```
+
+```{r}
+
+countries<-unique(c(unique(dat$from_country), unique(dat$to_country)))
+
+cumsum<-dat %>% 
+  arrange(desc(total_sed)) %>% 
+  ungroup() %>% 
+  mutate(cumsum = cumsum(total_sed),
+         prop_cumsum = cumsum/sum(dat$total_sed, na.rm = T)) %>% 
+  filter(prop_cumsum<=0.9)
+
+sub_countries<-unique(c(unique(cumsum$to_country)), c(unique(cumsum$from_country)))
+
+# create df for plotting with both sets of long/lat values
+plot_df <- data.frame(from_country = rownames(mat)) %>%
+  full_join(dat, by = "from_country") %>%
+  full_join(country_join_a, by = c("from_country")) %>%
+  full_join(country_join_b, by = c("to_country")) %>%
+  arrange(total_sed) %>% 
+  mutate(from_name = countrycode(from_country, "iso3c", "country.name"),
+         label = ifelse(from_country %in% countries, from_country, NA),
+         label_90 = ifelse(from_country %in% sub_countries, from_country, NA)) 
+
+
+
+```
+
+# create top 5 section:
+
+```{r}
+top_table <- dat %>%
+  arrange(-total_sed) %>%
+  head(10) 
+
+top_table$rank<-1:nrow(top_table)
+```
+
+# create simple world map
+
+```{r}
+map <- map_data("world") %>% 
+  filter(!region == "Antarctica") %>% 
+  mutate(iso3 = countrycode(region, "country.name", "iso3c")) %>% 
+  dplyr::select(x = long, y = lat, group, id = subregion, iso3) %>%
+  mutate(xend = 0,
+         yend = 0)
+```
+
+
+# build plot
+
+```{r}
+sub_plot_df <- plot_df %>% 
+  filter(total_sed>0.5)
+```
+
+
+```{r}
+ggplot(sub_plot_df, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_polygon(data = map, aes(group = group), fill = "grey", colour = "lightgrey") +
+  geom_edges(aes(color = total_sed/100), curvature = -0.1, arrow = arrow(length = unit(6, "pt"), type = "closed")) +
+  geom_edges(arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+ # geom_nodes(size = 2, color = "#1c192c", alpha = 0.8) +
+  geom_nodetext(aes(label = str_wrap(toupper(label), 8)), family = "Rubik", size = 5, color = "white",
+                fontface = "bold") +
+   guides(size = "none", alpha = "none") +
+  labs(color = "Sediment (Hundred Mt)", caption = "") +
+  scale_color_viridis_b() +
+  theme_blank() +
+    theme(
+    legend.position = "bottom",
+   # axis.title.x = element_text(),
+    legend.key.width = unit(2, "cm"),
+    legend.key.height = unit(0.3, "cm"),
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.background = element_rect(fill = "darkgray", color = "darkgray"),
+    panel.background = element_rect(fill = "darkgray", color = "darkgray"),
+    text = element_text(family = "Rubik", color = "white"),
+    legend.background = element_rect(fill = "darkgray"),
+    legend.margin = margin(unit = "cm")
+  )
+```
+
+# Try Net export of sediments?
+
+```{r}
+net_sediment<-plot_df
+  
+c<-unique(plot_df$from_country)
+
+```
+
