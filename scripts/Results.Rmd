@@ -300,3 +300,66 @@ sum(reef_sed$sed_sum, na.rm = T)/sum(trans_sed_sum$sed_sum, na.rm = T)
 sum(reef_sed$sed_sum, na.rm = T)/total_sed
 ```
 
+# EEZ results
+
+## Total sediment plumed
+
+## EEZ Mismatch
+
+```{r}
+eez_mismatch<-read.csv(here("output_data/EEZ_sediments/EEZ_sed_trans_mismatch.csv"))
+
+iso3_eez_mismatch<-eez_mismatch %>% 
+  mutate(Sink_ISO3 = ifelse(Sink_ISO3 == " ", Sink_SOVISO3, Sink_ISO3)) %>% 
+  group_by(Sink_ISO3, Sink_name, Source_ISO3) %>% 
+  summarise(shared_sed = sum(total_eez_sed, na.rm = T),
+            source_sed = sum(unique(Source_sediment), na.rm = T),
+            prop = shared_sed/source_sed) %>% 
+  dplyr::select(Source_ISO3, Sink_ISO3, shared_sed, source_sed, prop, Sink_name)
+```
+
+# Countries that trade sediment back and forth
+
+```{r}
+test<-iso3_eez_mismatch %>% 
+  mutate(c = stringr::str_c(Sink_ISO3, Source_ISO3),
+         d = stringr::str_c(Source_ISO3, Sink_ISO3))
+
+test2<-iso3_eez_mismatch %>% 
+  mutate(c = stringr::str_c(Source_ISO3, Sink_ISO3))
+
+test3<-test %>% 
+  filter(c %in% test$c)
+
+cat<-unique(test3$c)
+
+combo_all<-c()
+
+for(i in 1:length(cat)){
+  
+  sub1<-test3 %>% 
+    filter(c == cat[[i]])
+  
+  sub2<-test3 %>% 
+    filter(d == cat[[i]])
+  
+  c1<-sub1$Source_ISO3
+  c2<-sub1$Sink_ISO3
+  
+  combo<-data_frame(x = c1, y = c2, sed_from_x = sub1$shared_sed, sed_from_y = sub2$shared_sed, sed_total_x = sub1$source_sed, sed_total_y = sub2$source_sed, name_x = sub1$Sink_name, name_y = sub2$Sink_name)
+  
+  combo_all<-rbind(combo_all, combo)
+}
+
+test<-combo_all %>% 
+  filter(x != y)
+
+test<-unique(iso3_eez_mismatch$Source_ISO3)
+test2<- unique(iso3_eez_mismatch$Sink_ISO3)
+
+test3<-test[test %in% test2]
+test4<-test2[test2 %in% test]
+```
+
+
+## Places with both transboundary terrestrial basin and transboundary EEZ?? Potential starts in Spain, pour point in France but plumes back to spain???
