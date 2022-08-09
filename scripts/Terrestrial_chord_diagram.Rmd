@@ -22,12 +22,20 @@ library(circlize)
 #devtools::install_github("https://github.com/mattflor/chorddiag")
 library(chorddiag)
 library(randomcoloR)
+library(RColorBrewer)
 
 t_crs<-'ESRI:54009'
 
 ```
 
 # Terrestrial mismatch plot
+
+## Continents data
+
+```{r}
+continents<-read.csv(here("raw_data/Countries_by_continent.csv"))
+```
+
 
 Mismatch in where the sediment comes form and where the pourpoint is
 
@@ -53,159 +61,295 @@ length(unique(sub_mismatch$MAIN_BAS))
 ```
 
 ```{r}
+lty_df = data.frame(c("S1", "S2", "S3"), c("E5", "E6", "E4"), c(1, 2, 3))
+
+chordDiagram(mat, grid.col = grid.col, link.lty = lty_df, link.lwd = lwd_df,
+    link.border = border_df)
+```
+
+```{r}
 africa<-sub_mismatch %>% 
   filter(Continent == "Africa",
-         !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
   dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
   mutate(sed_mt = (pp_dis)/1000000) %>% 
-  filter(sed_mt>0)
+  filter(sed_mt>0) 
+
+africa_plot_dat<- africa %>% 
+  dplyr::select(ISO3, pp_iso3, ISO3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T)) %>% 
+  filter(value >0.1)
+
+africa_lwd_df = data.frame(c("S1", "S2", "S3"), c("E5", "E6", "E4"), c(2, 2, 2))
+africa_border_df = data.frame(c("S1", "S2", "S3"), c("E5", "E6", "E4"), c(1, 1, 1))
+
 
 #length(unique(africa$MAIN_BAS))
 
 asia<-sub_mismatch %>% 
   filter(Continent == "Asia",
          !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
   dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000) 
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T))%>% 
+  filter(value >0.1)
 
 #length(unique(asia$MAIN_BAS))
 
 europe<-sub_mismatch %>% 
   filter(Continent == "Europe",
          !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
   dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000)
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T))%>% 
+  filter(value >0.1)
 
 #length(unique(europe$MAIN_BAS))
 
 na<-sub_mismatch %>% 
   filter(Continent == "North America",
          !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
   dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000)
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T))%>% 
+  filter(value >0.1)
 
 #length(unique(na$MAIN_BAS))
 
 sa<-sub_mismatch %>% 
   filter(Continent == "South America",
          !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
   dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000)
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T)) %>% 
+  filter(value >0.1)
 
 #length(unique(sa$MAIN_BAS))
 ```
-
-
-
+# Africa
 ```{r}
-africa_plot<-africa %>% 
- # dplyr::select(-max_sed_c) %>% 
-  mutate(pp_c = countrycode(pp_iso3, "iso3c", "country.name"),
-         country = countrycode(ISO3, "iso3c", "country.name")) %>% 
-  group_by(country, pp_c) %>% 
-  summarise(total_sed = sum(sed_mt, na.rm = T)) 
+#png(here("figures/Chord_diagram_Africa_mismatch.png"))
+pal <- brewer.pal(9, "YlGnBu")
 
-africa_plot<-africa_plot %>% 
-  arrange(desc(total_sed)) %>% 
-  filter(total_sed>70)
-  
+circos.par(gap.after = 6,
+           start.degree = 85, 
+           clock.wise = FALSE,
+           circle.margin = 0.05)
 
+chordDiagram(africa,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             annotationTrack = "grid", preAllocateTracks = 1,
+             link.border = "darkgray",
+             diffHeight = mm_h(3.5))
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim = get.cell.meta.data("xlim")
+  ylim = get.cell.meta.data("ylim")
+  sector.name = get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
+  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) +
+  title("Africa")
 
-# Add in missing countries
-cols<-unique(africa_plot$country)
-rows<-unique(africa_plot$pp_c)
+circos.clear()
 
-row_mis<-cols[!cols %in% rows]
-col_mis<-rows[!rows %in% cols]
+#dev.off()
+```
+# Asia
+```{r}
+png(here("figures/Chord_diagram_Asia_mismatch.png"))
+pal <- brewer.pal(9, "YlGnBu")
 
-add_col<-data.frame(pp_c = NA, country = col_mis, total_sed = 0)
-add_row<-data.frame(pp_c = row_mis, country = NA, total_sed = 0)
+circos.par(gap.after = 6,
+           start.degree = 85, 
+           clock.wise = FALSE,
+           circle.margin = 0.05)
 
-africa_plot2<-rbind(africa_plot, add_col) %>% 
-  rbind(., add_row) %>% 
-  pivot_wider(., names_from = "country", values_from = "total_sed") 
+chordDiagram(asia,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             annotationTrack = "grid", preAllocateTracks = 1,
+             link.border = "darkgray",
+             diffHeight = mm_h(3.5))
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim = get.cell.meta.data("xlim")
+  ylim = get.cell.meta.data("ylim")
+  sector.name = get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
+  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) +
+  title("Asia")
 
-africa_plot2<-africa_plot2 %>% 
-  dplyr::select(-"NA") %>% 
-  filter(is.na(pp_c) == F)
+circos.clear()
 
-africa_plot2[is.na(africa_plot2)] = 0
-
-# Make sure col names and row names match up
-africa_plot3<-africa_plot2 %>% 
-  select(sort(colnames(africa_plot2)))
- # dplyr::select(max_sed_c,"Libya","Togo","Djibouti","Eritrea","Guinea","Tanzania", "Algeria","Western Sahara","Zimbabwe","Ghana","Benin","Ethiopia","Guinea-Bissau","Kenya","Liberia","Mauritania","Morocco","Mozambique", "Niger", "Sudan","Tunisia")
-
-africa_char<-as.matrix(africa_plot3)
-
-africa_mat<-data.matrix(africa_plot3)
-
-rownames(africa_mat) <- africa_char[,"pp_c"]
-africa_mat <- africa_mat[,-which(colnames(africa_mat) == "pp_c")] #remove pp_c column
+dev.off()
 ```
 
+# Europe
+
 ```{r}
-# A vector of 4 colors for 4 groups
-source <- row.names(africa_mat)
-sink<-colnames(africa_mat)
+png(here("figures/Chord_diagram_Europe_mismatch.png"))
 
-dimnames(africa_mat) <- list(source = source,
-                    sink = sink)
+circos.par(gap.after = 6,
+           start.degree = 85, 
+           clock.wise = FALSE,
+           circle.margin = 0.05)
 
-n <- length(countries)
-palette <- distinctColorPalette(n)
-groupColors <- palette
+chordDiagram(europe,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             annotationTrack = "grid", preAllocateTracks = 1,
+             link.border = "darkgray",
+             diffHeight = mm_h(3.5))
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim = get.cell.meta.data("xlim")
+  ylim = get.cell.meta.data("ylim")
+  sector.name = get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
+  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) +
+  title("Europe")
+
+circos.clear()
+
+dev.off()
 ```
 
+
+# North America
 ```{r}
-test<-africa %>% 
-  filter(ISO3 == "DZA", 
-         pp_iso3 == "LBY")
+png(here("figures/Chord_diagram_North_America_mismatch.png"))
+pal <- brewer.pal(9, "YlGnBu")
+
+circos.par(gap.after = 6,
+           start.degree = 85, 
+           clock.wise = FALSE,
+           circle.margin = 0.05)
+
+chordDiagram(na,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             annotationTrack = "grid", preAllocateTracks = 1,
+             link.border = "darkgray",
+             diffHeight = mm_h(3.5))
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim = get.cell.meta.data("xlim")
+  ylim = get.cell.meta.data("ylim")
+  sector.name = get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
+  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) +
+  title("North America")
+
+circos.clear()
+
+dev.off()
+```
+
+# South America
+
+```{r}
+png(here("figures/Chord_diagram_South_America_mismatch.png"))
+circos.par(gap.after = 6,
+           start.degree = 85, 
+           clock.wise = FALSE,
+           circle.margin = 0.05)
+
+chordDiagram(sa,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             annotationTrack = "grid", preAllocateTracks = 1,
+             link.border = "darkgray",
+             diffHeight = mm_h(3.5))
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim = get.cell.meta.data("xlim")
+  ylim = get.cell.meta.data("ylim")
+  sector.name = get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
+  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) +
+  title("South America")
+
+circos.clear()
+
+dev.off()
+```
+
+# Cross continent
+
+```{r}
+mis_cont<-sub_mismatch %>% 
+    filter(!ISO3 == pp_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000) %>% 
+  filter(sed_mt>0) %>% 
+  dplyr::select(pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = max_sed_iso3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T))
+
+mis_cont2<- mis_cont %>% 
+  left_join(., continents, by = c("from" = "ISO3")) %>% 
+  rename(from_Continent = Continent) %>% 
+  dplyr::select(from, to, value, from_Continent) %>% 
+  left_join(., continents, by = c("to" = "ISO3")) %>% 
+  rename(to_Continent = Continent) %>% 
+  dplyr::select(from, to, value, from_Continent, to_Continent) 
+
+mis_cont3<- mis_cont2%>% 
+  filter(from_Continent != to_Continent)
+
 ```
 
 
 ```{r}
-p <- chorddiag(africa_mat, groupColors = groupColors, groupPadding = 5, groupnamePadding = 20, groupnameFontsize = 10)
-p
-```
-```{r}
- library(htmlwidgets)
- saveWidget(p, file=here("figures/Terrestrial_trans_chord_interactive.html"))
-```
+png(here("figures/Chord_diagram_cross_continent_mismatch.png"))
+circos.par(gap.after = 6,
+           start.degree = 85, 
+           clock.wise = FALSE,
+           circle.margin = 0.05)
 
-```{r}
-library(webshot)
-saveWidget(x, "temp.html")
-webshot("Terrestrial_trans_chord_interactive.html", "temp.png")
-```
+chordDiagram(sa,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             annotationTrack = "grid", preAllocateTracks = 1,
+             link.border = "darkgray",
+             diffHeight = mm_h(3.5))
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim = get.cell.meta.data("xlim")
+  ylim = get.cell.meta.data("ylim")
+  sector.name = get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
+  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) +
+  title("South America")
 
-# Create plot
+circos.clear()
 
-```{r}
-# data
-m <- matrix(c(11975,  5871, 8916, 2868,
-              1951, 10048, 2060, 6171,
-              8010, 16145, 8090, 8045,
-              1013,   990,  940, 6907),
-            byrow = TRUE,
-            nrow = 4, ncol = 4)
-
-```
-
-```{r}
-# A vector of 4 colors for 4 groups
-haircolors <- c("black", "blonde", "brown", "red")
-dimnames(m) <- list(have = haircolors,
-                    prefer = haircolors)
-groupColors <- c("#000000", "#FFDD89", "#957244", "#F26223")
-
-# Build the chord diagram:
-p <- chorddiag(m, groupColors = groupColors, groupnamePadding = 20)
-p
+dev.off()
 ```
 
