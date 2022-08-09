@@ -129,6 +129,7 @@ for(i in 1:length(continents)){
 
 
 ```{r}
+test<-list.files(path = here("output_data/Sediment_at_pourpoint/"), pattern = "Sediment_at_pourpoint")
 test<-st_read(here(paste0("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.shp")))
 
 test2<-test[1:10,]
