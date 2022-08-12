@@ -1,0 +1,235 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-08-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(countrycode)
+library(raster)
+library(sf)
+library(ggplot2)
+library(ggrepel)
+
+t_crs<-'ESRI:54009'
+```
+
+# EEZ results
+
+## Total sediment plumed
+
+## EEZ Mismatch
+
+```{r}
+eez_mismatch<-read.csv(here("output_data/EEZ_sediments/EEZ_sed_trans_mismatch.csv"))
+```
+
+# Number of transboundary eez basins
+
+```{r}
+length(unique(eez_mismatch$MAIN_BAS))
+```
+
+
+```{r}
+iso3_eez_mismatch<-eez_mismatch %>% 
+  mutate(Sink_ISO3 = ifelse(Sink_ISO3 == " ", Sink_SOVISO3, Sink_ISO3)) %>% 
+  group_by(Source_ISO3, Sink_ISO3) %>% 
+  summarise(shared_sed = sum(total_eez_sed, na.rm = T),
+            source_sed = sum(unique(Source_sediment), na.rm = T),
+            prop = shared_sed/source_sed) %>% 
+  dplyr::select(Source_ISO3, Sink_ISO3, shared_sed, source_sed, prop)
+```
+
+# Number of countries releasing sediment that is transboundary
+
+```{r}
+length(unique(iso3_eez_mismatch$Source_ISO3))
+```
+
+# Total sediment released from transboundary watersheds
+
+```{r}
+sum(iso3_eez_mismatch$source_sed)/1000000
+```
+
+# Total sediment released from pourpoints
+
+```{r}
+pp_sed<-st_read(here("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.gpkg")) #%>% 
+  #dplyr::select(MAIN_RI, MAIN_BAS) %>% 
+  #as.data.frame() %>% 
+  #dplyr::select(-geom) %>% 
+  #unique()
+```
+# Total sediment released at pourpoints
+
+```{r}
+ sum(pp_sed$sed_pp, na.rm = T)/1000000
+```
+# Proportion of sediment released from transboundary basins
+```{r}
+(sum(iso3_eez_mismatch$source_sed)/1000000)/(sum(pp_sed$sed_pp, na.rm = T)/1000000)
+```
+
+# Amount of sediment that ends up in another country
+
+```{r}
+sum(iso3_eez_mismatch$shared_sed, na.rm = T)/1000000
+(sum(iso3_eez_mismatch$shared_sed, na.rm = T)/1000000)/(sum(iso3_eez_mismatch$source_sed)/1000000)
+```
+
+# Greatest sources of transboundary sediment
+
+```{r}
+source_eez_mismatch<- iso3_eez_mismatch %>% 
+  group_by(Source_ISO3) %>% 
+  summarise(shared_sed_source = sum(shared_sed, na.rm = T),
+            total_sed_source = sum(source_sed, na.rm = T),
+            n_sinks = length(unique(Sink_ISO3)),
+            prop_shared = shared_sed_source/total_sed_source)
+
+source_eez_mismatch<-source_eez_mismatch %>% 
+  mutate(prop_total = shared_sed_source/sum(source_eez_mismatch$shared_sed_source))
+
+```
+
+```{r}
+test<-source_eez_mismatch %>% 
+  filter(n_sinks >=7)
+
+sum(test$shared_sed_source, na.rm = T)/sum(source_eez_mismatch$shared_sed_source)
+sum(test$total_sed_source, na.rm = T)/sum(source_eez_mismatch$total_sed_source)
+```
+
+```{r}
+ggplot(source_eez_mismatch, aes(y = log10(shared_sed_source/1000000+1) , x = log10(total_sed_source/1000000+1), colour = n_sinks, label = Source_ISO3)) +
+  geom_point() +
+  geom_text_repel() +
+  theme_bw()
+```
+
+
+```{r}
+sink_eez_mismatch<- iso3_eez_mismatch %>% 
+  group_by(Sink_ISO3) %>% 
+  summarise(shared_sed_sink = sum(shared_sed, na.rm = T),
+            n_sources = length(unique(Source_ISO3)))
+
+sink_eez_mismatch<-sink_eez_mismatch %>% 
+  mutate(prop_total = shared_sed_sink/sum(sink_eez_mismatch$shared_sed_sink))
+```
+
+# Number of countries that a country exports or imports sediment from
+
+
+
+
+# Country that has overlap with multiple countries
+
+# Countries that trade sediment back and forth
+
+```{r}
+all<-read.csv(here("output_data/EEZ_sediments/Country_sediment_exchange_results.csv"))
+```
+
+# Countries that receive more sediment than they produce themselves
+
+
+```{r}
+pp_sed_df<-pp_sed %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geom) %>% 
+  group_by(ISO3) %>% 
+  summarise(total_sed_iso3 = sum(sed_pp, na.rm = T))
+```
+
+```{r}
+prod_sink_mismatch<-full_join(pp_sed_df, sink_eez_mismatch, by = c("ISO3" = "Sink_ISO3")) %>% 
+  filter(!is.na(shared_sed_sink) == T)
+
+sub_prod_sink<-prod_sink_mismatch %>% 
+  filter(shared_sed_sink>total_sed_iso3) %>% 
+  mutate(Country = countrycode(ISO3, "iso3c", "country.name"),
+         shared_sed_mt = shared_sed_sink/1000000,
+         total_sed_mt = total_sed_iso3/1000000,
+         prop_mismatch = shared_sed_mt/total_sed_mt)
+```
+
+
+# Which transboundary EEZ basins are also transboundary terrestrial?
+
+```{r}
+eez_basins<-unique(eez_mismatch$MAIN_BAS)
+
+basin_table<-read.csv(here("results/Basin_results_table.csv"))
+
+trans_basins<-basin_table %>% 
+  filter(n_iso3>1)
+
+sub_eez_basins<-trans_basins %>% 
+  filter(MAIN_BAS %in% eez_basins)
+
+length(unique(sub_eez_basins$MAIN_BAS))
+
+```
+
+```{r}
+list_prop_basin<-list.files(here("output_data"), pattern = "Prop_basin_iso3", full.names = TRUE)
+
+sub_prop_basin<-list_prop_basin[grep(list_prop_basin, pattern = ".csv")] 
+
+dat <- 
+  do.call(rbind,
+          lapply(sub_prop_basin, read.csv))
+
+dat2<- dat %>% 
+  filter(MAIN_BAS %in% sub_eez_basins$MAIN_BAS)
+```
+# Look at Angola and Namibia watersheds
+```{r}
+angola<-dat2 %>% 
+  filter(MAIN_BAS == 1080020040)
+
+namibia<-dat2 %>% 
+  filter(MAIN_BAS == 1080015850)
+```
+
+```{r}
+shp_files<-list.files(path = here("output_data/Sediment"), pattern = ".shp", full.names = T)
+
+sed_dat<-do.call(rbind,
+          lapply(shp_files, st_read)) %>% 
+  st_transform(., t_crs) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+```
+
+```{r}
+angola_sed<-sed_dat %>% 
+  filter(MAIN_BAS == 1080020040)
+
+sum_angola<-sum(angola_sed$sed_sum)
+
+angola_sed<-angola_sed %>% 
+  mutate(prop_sed = sed_sum/sum_angola)
+```
+
+```{r}
+namibia_sed<-sed_dat %>% 
+  filter(MAIN_BAS %in% c(1080015850))
+
+sum_namibia<-sum(namibia_sed$sed_sum)
+
+namibia_sed<-namibia_sed %>% 
+  mutate(prop_sed = sed_sum/sum_namibia)
+```
+
