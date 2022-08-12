@@ -1,0 +1,76 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-08-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(countrycode)
+library(raster)
+library(sf)
+library(ggplot2)
+library(ggrepel)
+```
+
+# Load data
+
+```{r}
+eez_mismatch<-read.csv(here("output_data/EEZ_sediments/EEZ_sed_trans_mismatch.csv"))
+```
+
+# Exchange of sediments between countries
+
+```{r}
+sub_trade_data<-eez_mismatch %>% 
+  select(Source_ISO3, Sink_ISO3)      #create data set with only Export and Import Combinations
+
+sub_trade_data2<-unique(sub_trade_data[c("Source_ISO3", "Sink_ISO3")]) 
+
+countrytrade1<-merge(sub_trade_data2,setNames(sub_trade_data2,rev(names(sub_trade_data2)))) #create data frame of countries that both import & export to each other 
+d1<-as.data.frame(t(apply(countrytrade1,1,sort)))
+countrytrade<-countrytrade1[!duplicated(d1),]  
+```
+
+
+```{r}
+all<-c()
+for(i in 1:nrow(countrytrade)){
+  
+  print(i)
+ c1<-countrytrade$Source_ISO3[i]
+ c2<-countrytrade$Sink_ISO3[i]
+ 
+ sub<-eez_mismatch %>% 
+    filter(Source_ISO3 == c1 | Sink_ISO3 == c1)
+           
+ sub2<-sub %>% 
+    filter(Source_ISO3 == c2 | Sink_ISO3 == c2)
+ 
+ df1<-sub2 %>% 
+   filter(Source_ISO3 == c1)
+ 
+ df2<-sub2 %>% 
+   filter(Source_ISO3 == c2)
+ 
+ sub3<-data.frame(iso3_x = c1, iso3_y = c2, sed_x_source = sum(df1$Source_sediment, na.rm = T), sed_y_source = sum(df2$Source_sediment, na.rm = T), shared_x_sed = sum(df1$total_eez_sed, na.rm = T), shared_y_sed = sum(df2$total_eez_sed))
+ 
+ all<-rbind(all, sub3)
+}
+
+all<-all %>% 
+  mutate(diff = abs(shared_x_sed - shared_y_sed),
+         diff_mt = diff/1000000)
+
+write.csv(all, here("output_data/EEZ_sediments/Country_sediment_exchange_results.csv"))
+```
+
+# Cases 
