@@ -66,7 +66,8 @@ final_shared<-read.csv(here("output_data/EEZ_sediments/pour_points_shared_eez.cs
          sediment_eez = sediment_EEZ,
          Source_sediment = sed_pp) %>% 
   mutate(sediment_eez2 = ifelse(sediment_eez>Source_sediment, Source_sediment, sediment_eez),
-         prop_sed = sediment_eez/Source_sediment) %>% 
+         prop_sed = sediment_eez/Source_sediment,
+         Sink_ISO3 = ifelse(Sink_ISO3 == " ", Sink_SOVISO3, Sink_ISO3)) %>% 
   left_join(., riv_bas)
 ```
 
@@ -88,7 +89,7 @@ print(k)
  total_source_sediment<-sum(source_sediment$Source_sediment, na.rm = T)
 
   prop_shared <- sub_shared %>% 
-    group_by(MAIN_BAS, Source_ISO3, Sink_ISO3, Sink_SOVISO3, Sink_name) %>% 
+    group_by(MAIN_BAS, Source_ISO3, Sink_ISO3) %>% 
     summarise(total_eez_sed = sum(sediment_eez2, na.rm = T)) %>% 
     mutate(Source_sediment = round(total_source_sediment, 1),
            prop_sed = total_eez_sed/Source_sediment) %>% 
