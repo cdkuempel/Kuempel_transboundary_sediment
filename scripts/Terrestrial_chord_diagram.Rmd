@@ -33,7 +33,8 @@ t_crs<-'ESRI:54009'
 ## Continents data
 
 ```{r}
-continents<-read.csv(here("raw_data/Countries_by_continent.csv"))
+continents<-read.csv(here("raw_data/Countries_by_continent.csv")) %>% 
+  dplyr::select(ISO3, Continent)
 ```
 
 
@@ -55,44 +56,40 @@ sub_mismatch<-mismatch %>%
   filter(!pp_iso3 == "character(0)",
     max_sed_iso3 != pp_iso3,
           nchar(pp_iso3)==3,
-    !prop_sed == 0)
+    !prop_sed == 0) %>% 
+  dplyr::select(-Continent) %>% 
+  full_join(., continents, by = c("ISO3" = "ISO3")) %>% 
+  rename(source_continent = Continent) %>% 
+  full_join(., continents, by = c("pp_iso3" = "ISO3")) %>% 
+  rename(sink_continent = Continent) 
 
 length(unique(sub_mismatch$MAIN_BAS))
 ```
 
 ```{r}
-lty_df = data.frame(c("S1", "S2", "S3"), c("E5", "E6", "E4"), c(1, 2, 3))
-
-chordDiagram(mat, grid.col = grid.col, link.lty = lty_df, link.lwd = lwd_df,
-    link.border = border_df)
-```
-
-```{r}
 africa<-sub_mismatch %>% 
-  filter(Continent == "Africa",
+  filter(source_continent == "Africa",
+         sink_continent == "Africa",
          !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
   dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000) %>% 
-  filter(sed_mt>0) 
-
-africa_plot_dat<- africa %>% 
-  dplyr::select(ISO3, pp_iso3, ISO3, sed_mt) %>% 
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
   rename(from = ISO3,
          to = pp_iso3,
          value = sed_mt) %>% 
   group_by(from, to) %>% 
   summarise(value = sum(value, na.rm = T)) %>% 
-  filter(value >0.1)
-
-africa_lwd_df = data.frame(c("S1", "S2", "S3"), c("E5", "E6", "E4"), c(2, 2, 2))
-africa_border_df = data.frame(c("S1", "S2", "S3"), c("E5", "E6", "E4"), c(1, 1, 1))
+  filter(from != to,
+         value >0.1)
+  
 
 
 #length(unique(africa$MAIN_BAS))
 
 asia<-sub_mismatch %>% 
-  filter(Continent == "Asia",
+  filter(source_continent == "Asia",
+         sink_continent == "Asia",
          !ISO3 == pp_iso3,
          !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
@@ -103,47 +100,13 @@ asia<-sub_mismatch %>%
          to = pp_iso3,
          value = sed_mt) %>% 
   group_by(from, to) %>% 
-  summarise(value = sum(value, na.rm = T))%>% 
-  filter(value >0.1)
+  summarise(value = sum(value, na.rm = T))
 
 #length(unique(asia$MAIN_BAS))
 
 europe<-sub_mismatch %>% 
-  filter(Continent == "Europe",
-         !ISO3 == pp_iso3,
-         !pp_iso3 == max_sed_iso3,
-         !is.na(pp_dis) == T) %>% 
-  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000)  %>% 
-  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
-  rename(from = ISO3,
-         to = pp_iso3,
-         value = sed_mt) %>% 
-  group_by(from, to) %>% 
-  summarise(value = sum(value, na.rm = T))%>% 
-  filter(value >0.1)
-
-#length(unique(europe$MAIN_BAS))
-
-na<-sub_mismatch %>% 
-  filter(Continent == "North America",
-         !ISO3 == pp_iso3,
-         !pp_iso3 == max_sed_iso3,
-         !is.na(pp_dis) == T) %>% 
-  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000)  %>% 
-  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
-  rename(from = ISO3,
-         to = pp_iso3,
-         value = sed_mt) %>% 
-  group_by(from, to) %>% 
-  summarise(value = sum(value, na.rm = T))%>% 
-  filter(value >0.1)
-
-#length(unique(na$MAIN_BAS))
-
-sa<-sub_mismatch %>% 
-  filter(Continent == "South America",
+  filter(source_continent == "Europe",
+         sink_continent == "Europe",
          !ISO3 == pp_iso3,
          !pp_iso3 == max_sed_iso3,
          !is.na(pp_dis) == T) %>% 
@@ -155,9 +118,61 @@ sa<-sub_mismatch %>%
          value = sed_mt) %>% 
   group_by(from, to) %>% 
   summarise(value = sum(value, na.rm = T)) %>% 
-  filter(value >0.1)
+  filter(from != to)
+
+#length(unique(europe$MAIN_BAS))
+
+na<-sub_mismatch %>% 
+  filter(source_continent == "North America",
+         sink_continent == "North America",
+         !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T))%>% 
+  filter(from != to)
+
+#length(unique(na$MAIN_BAS))
+
+sa<-sub_mismatch %>% 
+  filter(source_continent == "South America",
+         sink_continent == "South America",
+         !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T)) %>% 
+  filter(from != to)
 
 #length(unique(sa$MAIN_BAS))
+
+oceania<-sub_mismatch %>% 
+  filter(source_continent == "Oceania",
+         sink_continent == "Oceania",
+         !ISO3 == pp_iso3,
+         !pp_iso3 == max_sed_iso3,
+         !is.na(pp_dis) == T) %>% 
+  dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
+  mutate(sed_mt = (pp_dis)/1000000)  %>% 
+  dplyr::select(ISO3, pp_iso3, max_sed_iso3, sed_mt) %>% 
+  rename(from = ISO3,
+         to = pp_iso3,
+         value = sed_mt) %>% 
+  group_by(from, to) %>% 
+  summarise(value = sum(value, na.rm = T)) %>% 
+  filter(from != to)
 ```
 # Africa
 ```{r}
@@ -188,7 +203,7 @@ circos.clear()
 ```
 # Asia
 ```{r}
-png(here("figures/Chord_diagram_Asia_mismatch.png"))
+#png(here("figures/Chord_diagram_Asia_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -211,13 +226,13 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-dev.off()
+#dev.off()
 ```
 
 # Europe
 
 ```{r}
-png(here("figures/Chord_diagram_Europe_mismatch.png"))
+#png(here("figures/Chord_diagram_Europe_mismatch.png"))
 
 circos.par(gap.after = 6,
            start.degree = 85, 
@@ -239,13 +254,13 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-dev.off()
+#dev.off()
 ```
 
 
 # North America
 ```{r}
-png(here("figures/Chord_diagram_North_America_mismatch.png"))
+#png(here("figures/Chord_diagram_North_America_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -268,13 +283,13 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-dev.off()
+#dev.off()
 ```
 
 # South America
 
 ```{r}
-png(here("figures/Chord_diagram_South_America_mismatch.png"))
+#png(here("figures/Chord_diagram_South_America_mismatch.png"))
 circos.par(gap.after = 6,
            start.degree = 85, 
            clock.wise = FALSE,
@@ -295,15 +310,41 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-dev.off()
+#dev.off()
 ```
 
-# Cross continent
+# Oceania
+
+```{r}
+#png(here("figures/Chord_diagram_South_America_mismatch.png"))
+circos.par(gap.after = 6,
+           start.degree = 85, 
+           clock.wise = FALSE,
+           circle.margin = 0.05)
+
+chordDiagram(oceania,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             annotationTrack = "grid", preAllocateTracks = 1,
+             link.border = "darkgray",
+             diffHeight = mm_h(3.5))
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim = get.cell.meta.data("xlim")
+  ylim = get.cell.meta.data("ylim")
+  sector.name = get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
+  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) +
+  title("Oceania")
+
+circos.clear()
+
+#dev.off()
+```
+
+# Cross
 
 ```{r}
 mis_cont<-sub_mismatch %>% 
-    filter(!ISO3 == pp_iso3,
-         !is.na(pp_dis) == T) %>% 
+    filter(source_continent != sink_continent) #%>% 
   dplyr::select(ISO3, MAIN_BAS,pp_iso3, max_sed_iso3, pp_dis) %>% #pp_dis is pourpoint discharge from each country
   mutate(sed_mt = (pp_dis)/1000000) %>% 
   filter(sed_mt>0) %>% 
