@@ -1,7 +1,7 @@
 ---
 title: "Untitled"
 author: "Caitie"
-date: '2022-05-24'
+date: "2022-08-09"
 output: html_document
 ---
 
@@ -24,26 +24,25 @@ library(rworldmap)
 library(sf)
 library(rgeos)
 library(countrycode)
+library(here)
 ```
+
 # Load data
 
 ```{r}
-list_mismatch<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial", full.names = T)
-  
-mismatch<-do.call(rbind,
-          lapply(list_mismatch, read.csv))
+eez_mismatch<-read.csv(here("output_data/EEZ_sediments/EEZ_sed_trans_mismatch.csv"))
+
+test<-eez_mismatch %>% 
+  filter(Source_ISO3 == Sink_ISO3)
 ```
 
 
 Mismatch between country that produces majority of sediment and where sediment is released
 ```{r}
-sub_mismatch<-mismatch %>% 
-  filter(!pp_iso3 == "character(0)",
-    max_sed_iso3 != pp_iso3,
-          nchar(pp_iso3)==3,
-    !prop_sed == 0) %>% 
-  rename(from_country = ISO3,
-         to_country = pp_iso3)
+sub_mismatch<-eez_mismatch %>% 
+  filter(!prop_sed == 0) %>% 
+  rename(from_country = Source_ISO3,
+         to_country = Sink_ISO3) 
 
 length(unique(sub_mismatch$MAIN_BAS))
 ```
@@ -54,9 +53,9 @@ length(unique(sub_mismatch$MAIN_BAS))
 dat<-sub_mismatch %>% 
  # filter(Continent == "Africa",
   filter(!from_country == to_country,
-         !is.na(pp_dis) == T) %>% 
-  dplyr::select(MAIN_BAS,from_country, to_country, pp_dis) %>% #pp_dis is pourpoint discharge from each country
-  mutate(sed_mt = (pp_dis)/1000000) %>% 
+         !is.na(total_eez_sed) == T) %>% 
+  dplyr::select(MAIN_BAS,from_country, to_country, total_eez_sed) %>% #total_eez sed is sediment that reaches sink country from source country
+  mutate(sed_mt = (total_eez_sed)/1000000) %>% 
   filter(sed_mt>0) %>% 
   group_by(from_country, to_country) %>% 
   summarise(total_sed = sum(sed_mt, na.rm = T)) 
@@ -175,20 +174,21 @@ map <- map_data("world") %>%
 
 ```{r}
 sub_plot_df <- plot_df %>% 
-  filter(total_sed>=22.66090) #top 90%
+  filter(total_sed>=5.14417) #90% cutoff
 ```
-
 
 ```{r}
 ggplot(sub_plot_df, aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_polygon(data = map, aes(group = group), fill = "White", colour = "lightgrey") +
-  geom_edges(aes(color = total_sed/100), curvature = -0.1, arrow = arrow(length = unit(6, "pt"), type = "closed")) +
+  geom_polygon(data = map, aes(group = group), fill = "White", colour = "lightgray") +
+  geom_edges(aes(color = total_sed), curvature = -0.1, arrow = arrow(length = unit(6, "pt"), type = "closed")) +
   geom_edges(arrow = arrow(length = unit(4, "pt"), type = "closed")) +
  # geom_nodes(size = 2, color = "#1c192c", alpha = 0.8) +
-  geom_nodetext(aes(label = str_wrap(toupper(label), 8)), family = "Rubik", size = 5, color = "black",
+  geom_nodetext(aes(label = str_wrap(toupper(from_country), 8)), family = "Rubik", size = 5, color = "black",
                 fontface = "bold") +
+#  geom_nodetext(aes(label = str_wrap(toupper(to_country), 8)), family = "Rubik", size = 5, color = "black",
+#                fontface = "bold") +
    guides(size = "none", alpha = "none") +
-  labs(color = "Sediment (Hundred Mt)", caption = "") +
+  labs(color = "Sediment (Mt)", caption = "") +
   scale_color_viridis_b() +
   theme_blank() +
     theme(
@@ -204,10 +204,7 @@ ggplot(sub_plot_df, aes(x = x, y = y, xend = xend, yend = yend)) +
     legend.margin = margin(unit = "cm")
   )
 ```
-
-# Try Net export of sediments?
 ```{r}
-ggsave(here("figures/Transboundary_terrestrial_network_map.png"), dpi = 300, width = 9, height = 5)
+ggsave(here("figures/Transboundary_EEZ_network_map.png"), dpi = 300, width = 9, height = 5)
 ```
-
 
