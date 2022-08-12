@@ -1,0 +1,73 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-08-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(countrycode)
+library(raster)
+library(sf)
+library(ggplot2)
+library(ggrepel)
+```
+
+# Reference list
+
+```{r}
+ref_list<-read.csv(here("raw_data/Countries_by_continent.csv")) %>% 
+  dplyr::select(Country) 
+
+test<-as.character(ref_list$Country)
+```
+
+
+```{r}
+test<-read.delim(here("raw_data/Mason_2020_management/Transboundary_data.txt"))
+
+feas<-st_read(here("raw_data/Mason_2020_management/Transboundary_data.gdb"), layer = "Global_Feas_10km") %>% 
+  as.data.frame() %>% 
+  dplyr::select(-Shape) %>% 
+  dplyr::select(pair, FI_10km) %>% 
+  mutate(n_word = stringr::str_count(pair, '\\w+'))
+
+feas1<-feas %>% 
+  filter(n_word == 2) %>% 
+  separate(pair, c('Country_x', 'Country_y')) %>% 
+  mutate(ISO3_x = countrycode(Country_x, "country.name", "iso3c"),
+         ISO3_y = countrycode(Country_y, "country.name", "iso3c"),
+         ISO3_x = ifelse(is.na(ISO3_x) == T, "XXK", ISO3_x),
+         ISO3_y = ifelse(is.na(ISO3_y) == T, "XXK", ISO3_y))
+
+
+feas3<- feas %>% 
+  filter(n_word>2)
+
+write.csv(feas3, here("output_data/Feasibility/Feasibility_pair_correction.csv"))
+  
+
+
+
+
+test2<-feas %>% 
+  filter(is.na(ISO3_x) == T,
+         is.na(ISO3_y) == T)
+
+
+avg_feas<- feas %>% 
+  ungroup() %>% 
+  dplyr::select(-Country_x, -Country_y) %>% 
+  group_by(ISO3_x,ISO3_y) %>% 
+  mutate(avg_feas = mean(FI_10km, na.rm = T)) %>% 
+  dplyr::select(-FI_10km) %>% 
+  unique()
+```
+
