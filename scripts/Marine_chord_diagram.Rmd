@@ -130,56 +130,68 @@ cross<-sub_mismatch %>%
   summarise(sed_mt = sum(sed_mt, na.rm = T))
 #length(unique(sa$MAIN_BAS))
 ```
-# Africa
+
 ```{r}
-png(here("figures/Chord_diagram_Africa_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
+```
 
-circos.par(gap.after = 6,
+# Africa
+
+```{r}
+png(here("figures/Chord_diagram_Africa_mismatch.png"), width = 5, height = 5, units = "in", res = 300)
+
+par(cex = 1, mar = c(0, 0, 0, 0))
+
+circos.par(gap.after = 8,
            start.degree = 85, 
-           clock.wise = FALSE,
-           circle.margin = 0.05)
+           clock.wise = FALSE)
 
-chordDiagram(africa,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
-             annotationTrack = "grid", preAllocateTracks = 1,
+chordDiagram(africa,grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             preAllocateTracks = 1,
+             annotationTrack = "grid",
              link.border = "darkgray",
-             diffHeight = mm_h(3.5))
+             diffHeight = mm_h(3.5)) 
+
 circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim = get.cell.meta.data("xlim")
   ylim = get.cell.meta.data("ylim")
   sector.name = get.cell.meta.data("sector.index")
-  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
-  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
-}, bg.border = NA) +
-  title("Africa")
+  circos.text(mean(xlim), ylim[1] + .3, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+  circos.axis(h = "top", labels.cex = 0.5, major.tick.length = 0.5, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) 
+
 
 circos.clear()
 
 dev.off()
 ```
 
+
+
 # Asia
 ```{r}
-png(here("figures/Chord_diagram_Asia_mismatch.png"))
-pal <- brewer.pal(9, "YlGnBu")
+png(here("figures/Chord_diagram_Asia_mismatch.png"), width = 5, height = 5, units = "in", res = 300)
 
-circos.par(gap.after = 6,
+par(cex = 1, mar = c(0, 0, 0, 0))
+
+circos.par(gap.after = 8,
            start.degree = 85, 
-           clock.wise = FALSE,
-           circle.margin = 0.05)
+           clock.wise = FALSE)
 
-chordDiagram(asia,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
-             annotationTrack = "grid", preAllocateTracks = 1,
+chordDiagram(asia,grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             preAllocateTracks = 1,
+             annotationTrack = "grid",
              link.border = "darkgray",
-             diffHeight = mm_h(3.5))
+             diffHeight = mm_h(3.5)) 
+
 circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim = get.cell.meta.data("xlim")
   ylim = get.cell.meta.data("ylim")
   sector.name = get.cell.meta.data("sector.index")
-  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
-  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
-}, bg.border = NA) +
-  title("Asia")
+  circos.text(mean(xlim), ylim[1] + .3, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+  circos.axis(h = "top", labels.cex = 0.5, major.tick.length = 0.5, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) 
+
 
 circos.clear()
 
@@ -188,84 +200,93 @@ dev.off()
 
 # Europe
 ```{r}
-png(here("figures/Chord_diagram_Europe_mismatch.png"))
-pal <- brewer.pal(9, "YlGnBu")
+png(here("figures/Chord_diagram_Europe_mismatch.png"), width = 5, height = 5, units = "in", res = 300)
 
-circos.par(gap.after = 6,
+par(cex = 1, mar = c(0, 0, 0, 0))
+
+circos.par(gap.after = 8,
            start.degree = 85, 
-           clock.wise = FALSE,
-           circle.margin = 0.05)
+           clock.wise = FALSE)
 
-chordDiagram(europe,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
-             annotationTrack = "grid", preAllocateTracks = 1,
+chordDiagram(europe,grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             preAllocateTracks = 1,
+             annotationTrack = "grid",
              link.border = "darkgray",
-             diffHeight = mm_h(3.5))
+             diffHeight = mm_h(3.5)) 
+
 circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim = get.cell.meta.data("xlim")
   ylim = get.cell.meta.data("ylim")
   sector.name = get.cell.meta.data("sector.index")
-  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
-  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
-}, bg.border = NA) +
-  title("Europe")
+  circos.text(mean(xlim), ylim[1] + .3, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+  circos.axis(h = "top", labels.cex = 0.5, major.tick.length = 0.5, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) 
+
 
 circos.clear()
+
 
 dev.off()
 ```
 
 # North America
 ```{r}
-png(here("figures/Chord_diagram_North_America_mismatch.png"))
-pal <- brewer.pal(9, "YlGnBu")
+png(here("figures/Chord_diagram_North_America_mismatch.png"), width = 5, height = 5, units = "in", res = 300)
 
-circos.par(gap.after = 6,
+par(cex = 1, mar = c(0, 0, 0, 0))
+
+circos.par(gap.after = 8,
            start.degree = 85, 
-           clock.wise = FALSE,
-           circle.margin = 0.05)
+           clock.wise = FALSE)
 
-chordDiagram(na,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
-             annotationTrack = "grid", preAllocateTracks = 1,
+chordDiagram(na,grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             preAllocateTracks = 1,
+             annotationTrack = "grid",
              link.border = "darkgray",
-             diffHeight = mm_h(3.5))
+             diffHeight = mm_h(3.5)) 
+
 circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim = get.cell.meta.data("xlim")
   ylim = get.cell.meta.data("ylim")
   sector.name = get.cell.meta.data("sector.index")
-  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
-  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
-}, bg.border = NA) +
-  title("North America")
+  circos.text(mean(xlim), ylim[1] + .3, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+  circos.axis(h = "top", labels.cex = 0.5, major.tick.length = 0.5, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) 
+
 
 circos.clear()
+
 
 dev.off()
 ```
 
 # South America
 ```{r}
-png(here("figures/Chord_diagram_South_America_mismatch.png"))
-pal <- brewer.pal(9, "YlGnBu")
+png(here("figures/Chord_diagram_South_America_mismatch.png"), width = 5, height = 5, units = "in", res = 300)
 
-circos.par(gap.after = 6,
+par(cex = 1, mar = c(0, 0, 0, 0))
+
+circos.par(gap.after = 8,
            start.degree = 85, 
-           clock.wise = FALSE,
-           circle.margin = 0.05)
+           clock.wise = FALSE)
 
-chordDiagram(sa,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
-             annotationTrack = "grid", preAllocateTracks = 1,
+chordDiagram(sa,grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             preAllocateTracks = 1,
+             annotationTrack = "grid",
              link.border = "darkgray",
-             diffHeight = mm_h(3.5))
+             diffHeight = mm_h(3.5)) 
+
 circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim = get.cell.meta.data("xlim")
   ylim = get.cell.meta.data("ylim")
   sector.name = get.cell.meta.data("sector.index")
-  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
-  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
-}, bg.border = NA) +
-  title("South America")
+  circos.text(mean(xlim), ylim[1] + .3, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+  circos.axis(h = "top", labels.cex = 0.5, major.tick.length = 0.5, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) 
+
 
 circos.clear()
+
 
 dev.off()
 ```
@@ -276,28 +297,31 @@ dev.off()
 # Cross
 
 ```{r}
-png(here("figures/Chord_diagram_Cross_Continent_mismatch.png"))
-pal <- brewer.pal(9, "YlGnBu")
+png(here("figures/Chord_diagram_Cross_Continent_mismatch.png"), width = 5, height = 5, units = "in", res = 300)
 
-circos.par(gap.after = 6,
+par(cex = 1, mar = c(0, 0, 0, 0))
+
+circos.par(gap.after = 8,
            start.degree = 85, 
-           clock.wise = FALSE,
-           circle.margin = 0.05)
+           clock.wise = FALSE)
 
-chordDiagram(cross,  grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
-             annotationTrack = "grid", preAllocateTracks = 1,
+chordDiagram(cross,grid.col = "gray", col = pal, transparency = 0.2, directional = 1,
+             preAllocateTracks = 1,
+             annotationTrack = "grid",
              link.border = "darkgray",
-             diffHeight = mm_h(3.5))
+             diffHeight = mm_h(3.5)) 
+
 circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim = get.cell.meta.data("xlim")
   ylim = get.cell.meta.data("ylim")
   sector.name = get.cell.meta.data("sector.index")
-  circos.text(mean(xlim), ylim[1] + .25, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.7))
-  circos.axis(h = "top", labels.cex = 0.01, sector.index = sector.name, track.index = 2)
-}, bg.border = NA) +
-  title("Transcontinental")
+  circos.text(mean(xlim), ylim[1] + .3, sector.name, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+  circos.axis(h = "top", labels.cex = 0.5, major.tick.length = 0.5, sector.index = sector.name, track.index = 2)
+}, bg.border = NA) 
+
 
 circos.clear()
+
 
 dev.off()
 ```
