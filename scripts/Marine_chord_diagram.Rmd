@@ -132,7 +132,7 @@ cross<-sub_mismatch %>%
 ```
 # Africa
 ```{r}
-#png(here("figures/Chord_diagram_Africa_mismatch.png"))
+png(here("figures/Chord_diagram_Africa_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -155,12 +155,12 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-#dev.off()
+dev.off()
 ```
 
 # Asia
 ```{r}
-#png(here("figures/Chord_diagram_Africa_mismatch.png"))
+png(here("figures/Chord_diagram_Asia_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -183,12 +183,12 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-#dev.off()
+dev.off()
 ```
 
 # Europe
 ```{r}
-#png(here("figures/Chord_diagram_Africa_mismatch.png"))
+png(here("figures/Chord_diagram_Europe_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -211,12 +211,12 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-#dev.off()
+dev.off()
 ```
 
 # North America
 ```{r}
-#png(here("figures/Chord_diagram_Africa_mismatch.png"))
+png(here("figures/Chord_diagram_North_America_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -239,12 +239,12 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-#dev.off()
+dev.off()
 ```
 
 # South America
 ```{r}
-#png(here("figures/Chord_diagram_Africa_mismatch.png"))
+png(here("figures/Chord_diagram_South_America_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -267,7 +267,7 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-#dev.off()
+dev.off()
 ```
 
 # Oceania - no data
@@ -276,7 +276,7 @@ circos.clear()
 # Cross
 
 ```{r}
-#png(here("figures/Chord_diagram_Africa_mismatch.png"))
+png(here("figures/Chord_diagram_Cross_Continent_mismatch.png"))
 pal <- brewer.pal(9, "YlGnBu")
 
 circos.par(gap.after = 6,
@@ -299,6 +299,6 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 circos.clear()
 
-#dev.off()
+dev.off()
 ```
 
