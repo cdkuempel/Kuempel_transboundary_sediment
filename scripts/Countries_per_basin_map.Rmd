@@ -55,23 +55,27 @@ shp_basins<-full_join(basins, basin_table) %>%
 ```{r}
 breaks<-c(0,2,4,6,8,10,12,14,16,18,20)
 
+test<-shp_basins %>% 
+  filter(is.na(n_iso3) == T)
+
 
 #Needs to be categorical to have histogram
 
 n_map<-tm_shape(shp_basins) +
-    tm_fill("n_iso3", 
+    tm_polygons("n_iso3", 
                 breaks = breaks,
                 style = "cont", 
-                title = "                                       Number of countries",
-                palette = "Greys",
-            alpha = 0.7,
+                title = "         Number of countries",
+                palette = "Greens",
+            colorNA = NA,
+            textNA = NA,
             legend.is.portrait = FALSE) +
   tm_borders(lwd = 0.7,
              alpha = 0.5)+
   #tm_legend(legend.position = c("bottom")) +
   tm_layout(legend.outside = T,
             legend.outside.position = "bottom",
-            legend.position = c(0.1, 0.1),
+            legend.position = c(0.35, 0.1),
             frame = F) +
   tm_shape(world) +
    tm_borders() 
@@ -131,30 +135,56 @@ PSE
 TKM
 ```{r}
 
+test<-sub_eez_sink %>% 
+  filter(total_sed_mil>60)
+
+breaks_eez<-c(0,0.00000001,0.000001,0.001,0.1,1, 10, 25, 50, 75, 100, 150)
+breaks_eez<-as.numeric(quantile(sub_eez_sink$total_sed_mil, na.rm = T,probs = seq(0, 1, 0.1)))
+
 sub_eez_sink<-eez_sink %>% 
   filter(!is.na(rgn_name) == T) %>% 
-  mutate(total_sed_mil = total_sed/1000000) #%>% 
+  mutate(total_sed_mil = total_sed/1000000)#,
+       #  total_sed_mil = ifelse(is.na(total_sed_mil) == T, 0, total_sed_mil)) #%>% 
  # mutate(total_sed = ifelse(is.na(total_sed) == T, 0, total_sed))
 
 eez_map<-tm_shape(sub_eez_sink) +
-    tm_fill("total_sed_mil", 
-               # breaks = breaks2,
+    tm_polygons("total_sed_mil", 
+                breaks = breaks_eez,
                 style = "cont",
                 palette = "-RdYlBu",
-            trans = "log10",
+            textNA = NA,
+           # style = "log10",
+             title = "                                                         Sediment (Million Mt)",
             legend.is.portrait = FALSE) +
   tm_borders(lwd = 1)+
-  #tm_legend(legend.position = c("bottom")) +
   tm_layout(legend.outside = T,
             legend.outside.position = "bottom",
-            legend.position = c(0.1, 0.1),
+            legend.position = c(0.1,0.1),
             frame = F) 
 
 eez_map
 ```
 
 ```{r}
-n_map + eez_map
+eez_map2<-eez_map +
+  tm_shape(world) +
+   tm_borders() 
+
+eez_map2
+
 ```
+```{r}
+tmap_save(eez_map, here("figures/EEZ_sediment_totals.png"), dpi = 300)
+```
+
+```{r}
+combined<-n_map + eez_map
+```
+
+```{r}
+tmap_save(combined, here("figures/EEZ_sediment_Country_basin_combined.png"), dpi = 300)
+
+```
+
 
 
