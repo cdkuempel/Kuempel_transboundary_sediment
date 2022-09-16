@@ -63,9 +63,10 @@ n_map<-tm_shape(shp_basins) +
                 breaks = breaks,
                 style = "cont", 
                 title = "                                       Number of countries",
-                palette = "-RdYlBu",
+                palette = "Greys",
+            alpha = 0.7,
             legend.is.portrait = FALSE) +
-  tm_borders(lwd = 0.2,
+  tm_borders(lwd = 0.7,
              alpha = 0.5)+
   #tm_legend(legend.position = c("bottom")) +
   tm_layout(legend.outside = T,
@@ -73,7 +74,7 @@ n_map<-tm_shape(shp_basins) +
             legend.position = c(0.1, 0.1),
             frame = F) +
   tm_shape(world) +
-   tm_borders(alpha = 0.7) 
+   tm_borders() 
 ```
 
 ```{r}
@@ -85,75 +86,75 @@ tmap_save(n_map, here("figures/Global_countries_per_basin.png"), dpi = 300)
 ```
 
 
-# Continent bar charts
+# EEZ sediment transport
 
 ```{r}
-iso3_cont_basins<-dat %>% 
-  filter(!duplicated(MAIN_BAS)) %>% 
-  group_by(Continent) %>% 
-  summarise(n_basins = length(unique(MAIN_BAS)))
-
-
-trans_basins<-dat %>% 
-  filter(n >1)
-
-iso3_trans_basins<-dat %>% 
-  filter(MAIN_BAS %in% trans_basins$MAIN_BAS,
-         !duplicated(MAIN_BAS)) %>% 
-  group_by(Continent) %>% 
-  summarise(n_trans = length(unique(MAIN_BAS)))
-
-iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>% 
-  mutate(prop_trans = n_trans/n_basins)
+eez_mismatch<-read.csv(here("output_data/EEZ_sediments/EEZ_sed_trans_mismatch.csv"))
 ```
 
 ```{r}
-list_crypt_sed_basin<-list.files(here("output_data/Transboundary"), pattern = "Terrestrial_transboundary_", full.names = TRUE)
-
-crypt_sed_dat <- 
-  do.call(rbind,
-          lapply(list_crypt_sed_basin, read.csv))
-
-trans_crypt_sed_sum<-crypt_sed_dat %>% 
-  group_by(ISO3, Continent, MAIN_BAS) %>% 
-  filter(!duplicated(MAIN_BAS))
+sink<-eez_mismatch %>% 
+  group_by(Sink_ISO3) %>% 
+  summarise(total_sed = sum(total_eez_sed, na.rm = T))
 ```
 
 ```{r}
-iso3_crypt_trans_basins<- trans_crypt_sed_sum %>% 
-  filter(!duplicated(sed_sum)) %>% 
-  group_by(Continent) %>% 
-  summarise(n_crypt_basins = length(unique(MAIN_BAS)))
+eez<-st_read(here("raw_data/EEZ/World_EEZ_v11_20191118/eez_v11.shp")) %>% 
+  st_make_valid(., NA_on_exception = T) %>% 
+  st_transform(., t_crs)
 
-iso3_df<-full_join(iso3_cont_basins, iso3_trans_basins) %>%
-  full_join(., iso3_crypt_trans_basins) %>% 
-  mutate(n_single = n_basins - n_trans) %>% 
-  dplyr::select(-n_basins) %>% 
-  pivot_longer(., cols = c(n_single, n_trans, n_crypt_basins), names_to = "type", values_to = "n") %>% 
-  mutate(labels = ifelse(type == "n_single","Single", 
-                         ifelse(type == "n_trans", "Transboundary", "Trans-cryptorheic")))
+eez2<-eez %>% 
+  mutate(area_m2 = as.numeric(st_area(.))) %>% 
+  group_by(ISO_TER1) %>% 
+  summarise(total_area = sum(area_m2, na.rm = T))
+```
 
 
-
-
-
-#%>% 
-#  mutate(prop_trans = n_trans/n_basins,
-#         prop_crypt = n_crypt_basins/n_basins,
-#         prop_trans_crypt = n_crypt_basins/n_trans)
+```{r}
+eez<-st_read(here("raw_data/EEZ/eez_simple.shp")) %>% 
+  st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs")
 ```
 
 ```{r}
-ggplot(iso3_df, aes(x = Continent, y = n, fill = factor(labels,levels=c("Single","Transboundary", "Trans-cryptorheic")))) +
-  geom_bar(stat = "identity", position = "fill") +
-  theme_minimal() +
-  xlab("Continent") +
-  ylab("Percent of basins") +
-  labs(fill='Basin type') +
-  scale_fill_manual(values = c("darkblue", "yellow", "darkred"))
+eez_sink<-full_join(eez, sink, by = c("rgn_key" = "Sink_ISO3"))
 ```
 
+Missing EEZs
+ABW - Aruba
+AZE - Azerbeijan
+BLM
+CUW
+GLP
+MTQ
+PRI
+PSE
+TKM
+```{r}
 
+sub_eez_sink<-eez_sink %>% 
+  filter(!is.na(rgn_name) == T) %>% 
+  mutate(total_sed_mil = total_sed/1000000) #%>% 
+ # mutate(total_sed = ifelse(is.na(total_sed) == T, 0, total_sed))
 
+eez_map<-tm_shape(sub_eez_sink) +
+    tm_fill("total_sed_mil", 
+               # breaks = breaks2,
+                style = "cont",
+                palette = "-RdYlBu",
+            trans = "log10",
+            legend.is.portrait = FALSE) +
+  tm_borders(lwd = 1)+
+  #tm_legend(legend.position = c("bottom")) +
+  tm_layout(legend.outside = T,
+            legend.outside.position = "bottom",
+            legend.position = c(0.1, 0.1),
+            frame = F) 
+
+eez_map
+```
+
+```{r}
+n_map + eez_map
+```
 
 
