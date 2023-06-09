@@ -1,0 +1,268 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-08-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(countrycode)
+library(raster)
+library(sf)
+library(ggplot2)
+library(ggrepel)
+library(tmap)
+
+t_crs<-'ESRI:54009'
+```
+# Continents
+
+```{r}
+continents<-read.csv(here("raw_data/Countries_by_continent.csv")) %>% 
+  dplyr::select(ISO3, Continent)
+```
+
+# Basins
+
+```{r}
+basin_table<-read.csv(here("results/Basin_results_table.csv"))
+
+trans_basins<-basin_table %>% 
+  filter(n_iso3 >1)
+```
+
+
+```{r}
+basins_area<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
+  st_make_valid() %>% 
+  mutate(b_area_km2 = as.numeric(st_area(.))*1e-6) %>% 
+  filter(MAIN_BAS %in% trans_basins$MAIN_BAS)
+
+length(unique(basins_area$MAIN_BAS))
+```
+
+
+
+# Feasbility score
+
+
+```{r}
+test<-read.delim(here("raw_data/Mason_2020_management/Transboundary_data.txt"))
+
+feas_shp<-st_read(here("raw_data/Mason_2020_management/Transboundary_data.gdb"), layer = "Global_Feas_10km") %>% 
+  st_transform(., t_crs)
+
+feas<-st_read(here("raw_data/Mason_2020_management/Transboundary_data.gdb"), layer = "Global_Feas_10km") %>% 
+  as.data.frame() %>% 
+  dplyr::select(-Shape) %>% 
+  dplyr::select(pair, FI_10km) %>% 
+  mutate(n_word = stringr::str_count(pair, '\\w+'))
+
+feas1<-feas %>% 
+  filter(n_word == 2) %>% 
+  separate(pair, c('Country_x', 'Country_y'), remove = F) %>% 
+  mutate(ISO3_x = countrycode(Country_x, "country.name", "iso3c"),
+         ISO3_y = countrycode(Country_y, "country.name", "iso3c"),
+         ISO3_x = ifelse(is.na(ISO3_x) == T, "XXK", ISO3_x),
+         ISO3_y = ifelse(is.na(ISO3_y) == T, "XXK", ISO3_y))
+
+
+feas2<- feas %>% 
+  filter(n_word>2)
+
+write.csv(feas2, here("output_data/Feasibility/Feasibility_pair_correction.csv"))
+
+```
+
+```{r}
+feas2<-read.csv(here("output_data/Feasibility/Feasibility_pair_correction_CK.csv")) %>% 
+  mutate(ISO3_x = countrycode(Country_x, "country.name", "iso3c"),
+         ISO3_y = countrycode(Country_y, "country.name", "iso3c")) %>% 
+  filter(!Country_y == "Saint-Martin") %>% 
+  dplyr::select(-X)
+
+which(is.na(feas2$ISO3_x) == T | is.na(feas2$ISO3_y) == T)
+
+```
+
+```{r}
+all_feas<-rbind(feas1,feas2)
+```
+
+
+# Mean feasibility 
+
+```{r}
+feas_shp<-full_join(feas_shp, all_feas)
+
+#mean_feas<-feas_shp %>% 
+#  group_by(ISO3_x, ISO3_y, Country_x, Country_y, pair) %>% 
+#  summarise(avg_feas = mean(FI_10km, na.rm = T))
+```
+
+# Intersect basins with feasibility
+
+Original index was the sum of weighted (1/3) normalised indices of collaboration, governance, and human pressure (times 10 to be between 0 and 10)
+```{r}
+basin_feas<-st_intersection(basins_area, feas_shp) 
+
+basin_feas<-basin_feas %>% 
+  dplyr::select(MAIN_BAS, b_area_km2, Normal_GS, HFP_10km, gov_20y)
+
+```
+
+
+```{r}
+mean_basin_feas<- basin_feas %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BAS, b_area_km2) %>% 
+  summarise_all(mean, na.rm = T) %>% 
+  full_join(., basin_table)
+```
+
+Higher mean feasibility index = greater feasibility
+Lower = less feasibility
+
+Bigger basin = less feasibility
+More countries = less feasibility
+```{r}
+max_area<-max(mean_basin_feas$b_area_km2,na.rm = T)
+min_area<-min(mean_basin_feas$b_area_km2,na.rm = T)
+max_GS<-max(mean_basin_feas$Normal_GS,na.rm = T)
+min_GS<-min(mean_basin_feas$Normal_GS,na.rm = T)
+max_HFP<-max(mean_basin_feas$HFP_10km,na.rm = T)
+min_HFP<-min(mean_basin_feas$HFP_10km,na.rm = T)
+max_gov<-max(mean_basin_feas$gov_20y,na.rm = T)
+min_gov<-min(mean_basin_feas$gov_20y,na.rm = T)
+min_n_iso3<-min(mean_basin_feas$n_iso3, na.rm = T)
+max_n_iso3<-max(mean_basin_feas$n_iso3, na.rm = T)
+
+mean_basin_feas<-mean_basin_feas %>% 
+  mutate(norm_GS = (Normal_GS - min_GS)/(max_GS - min_GS),
+         norm_basin_area = 1-(b_area_km2- min_area)/(max_area - min_area),
+        # norm_iso3 = 1-(n_iso3-min_n_iso3)/(max_n_iso3 - min_n_iso3),
+         norm_HFP = (HFP_10km - min_HFP)/(max_HFP - min_HFP),
+         norm_gov =(gov_20y - min_gov)/(max_gov - min_gov),
+         feas_index = (norm_GS + norm_basin_area + norm_HFP + norm_gov)/4)
+```
+
+# Check collinearity
+
+```{r}
+cor_check<-mean_basin_feas %>% 
+  ungroup() %>% 
+  dplyr::select(norm_GS, norm_basin_area, norm_HFP, norm_gov)
+
+res <- cor(cor_check,use = "complete.obs")
+round(res, 2)
+
+corrplot(res, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+
+# Join to marine transboundary sediment data
+
+```{r}
+eez_mismatch<-read.csv(here("output_data/EEZ_sediments/EEZ_sed_trans_mismatch.csv"))
+
+basin_continent<-eez_mismatch %>% 
+  full_join(., continents, by = c("Source_ISO3" = "ISO3")) 
+
+eez_mismatch<-basin_continent %>% 
+  group_by(MAIN_BAS, Continent) %>% 
+  summarise(eez_sed = sum(total_eez_sed, na.rm = T),
+            source_sed = sum(Source_sediment, na.rm = T)) 
+
+```
+
+
+# With sediment at pourpoints
+
+```{r}
+sed_pp<-st_read(here("output_data/Sediment_at_pourpoint/Sediment_at_pourpoint.gpkg")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geom)
+
+sed_pp_bas<-sed_pp %>% 
+  full_join(., continents) %>% 
+  dplyr::select(MAIN_BAS, bas_sed_sum, Continent) %>% 
+  distinct() %>% 
+  full_join(., mean_basin_feas) %>% 
+  full_join(., eez_mismatch) %>% 
+  mutate(eez_sed = ifelse(is.na(eez_sed) == T, 0, eez_sed)) %>% 
+  arrange(., eez_sed) %>% 
+  filter(!Continent == "Antarctica") %>% 
+  mutate(prop_eez_sed = eez_sed/total_sed_bas)
+
+test<-sed_pp_bas %>% 
+  filter(is.na(feas_index) == F)
+  
+length(unique(test$MAIN_BAS))
+```
+
+```{r}
+#sub<-basin_sed_feas %>% 
+#  filter(norm_feas_area <0.5)
+
+med_feas<-median(sed_pp_bas$feas_index, na.rm = T)
+med_sed<-median(sed_pp_bas$total_sed_bas/1000000, na.rm = T)
+
+ggplot(sed_pp_bas, aes(y = total_sed_bas/1000000, x = feas_index, color = prop_eez_sed)) +
+  facet_wrap(~Continent) +
+  scale_color_viridis_c(direction = -1, trans = "log10") +
+  geom_point() +
+  geom_hline(yintercept = med_sed) +
+  geom_vline(xintercept = med_feas) +
+  theme_bw() +
+  scale_x_log10() +
+  scale_y_log10() +
+  ylab("Sediment\n(million Mt)") +
+  xlab("Feasibility index") +
+  labs(color = "Transboundary\n marine sediment")
+
+```
+```{r}
+sed_pp_bas<-sed_pp_bas %>% 
+  mutate(risk_cat = ifelse(total_sed_bas/1000000<med_sed & feas_index<med_feas, 1,
+                           ifelse(total_sed_bas/1000000<med_sed & feas_index>=med_feas, 2,
+                                  ifelse(total_sed_bas/1000000>=med_sed & feas_index<med_feas, 4,
+                                         ifelse(total_sed_bas/1000000>=med_sed & feas_index>=med_feas, 3, NA)))))
+
+sf_basin<-basins %>% 
+  full_join(., sed_pp_bas) %>% 
+  st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs")
+
+```
+```{r}
+#test<-sf_basin %>% 
+#  filter(is.na(risk_cat) == F)
+
+tm_shape(sf_basin) +
+    tm_polygons("risk_cat", 
+                title = "         Risk",
+                palette = "-RdYlGn",
+                 style = "cat",
+              breaks = c(1, 2, 3, 4),
+              labels = c("low", "medium", "medium-high", "high"),
+            colorNA = NA,
+            textNA = NA,
+            legend.is.portrait = FALSE) +
+  tm_borders(lwd = 0.7,
+             alpha = 0.5)+
+  #tm_legend(legend.position = c("bottom")) +
+  tm_layout(legend.outside = T,
+            legend.outside.position = "bottom",
+            legend.position = c(0.35, 0.1),
+            frame = F) +
+  tm_shape(world) +
+   tm_borders() 
+```
