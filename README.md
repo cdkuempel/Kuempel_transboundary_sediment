@@ -1,4 +1,6 @@
-# transboundary_sediment
+# The Global Biodiversity Framework can be leveraged to better manage transboundary watersheds
+
+These script accompany the publication by Kuempel and Suarez-Castro published in PNAS (2024).
 
 
 # Scripts
