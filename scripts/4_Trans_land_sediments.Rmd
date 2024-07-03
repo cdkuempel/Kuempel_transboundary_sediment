@@ -55,7 +55,7 @@ pp<-
 # Pourpoints in each MAIN BAS
 
 ```{r}
-basins<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
+basins<-st_read(here("raw_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
   st_make_valid() 
 
 pp_basins<-st_join(pp, basins) %>% 

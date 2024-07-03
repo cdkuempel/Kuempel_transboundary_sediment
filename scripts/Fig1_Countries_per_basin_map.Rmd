@@ -32,7 +32,7 @@ basin_table<-read.csv(here("results/Basin_results_table.csv"))
 
 Basin shapefile
 ```{r}
-basins<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
+basins<-st_read(here("raw_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
   st_make_valid()
 ```
 # Country shapefile
@@ -85,9 +85,106 @@ n_map<-tm_shape(shp_basins) +
 n_map
 ```
 
+Figure 1A
 ```{r}
-tmap_save(n_map, here("figures/Global_countries_per_basin.png"), dpi = 300)
+tmap_save(n_map, here("figures/Global_countries_per_basin_Figure1A.png"), dpi = 300)
 ```
+
+# Sediment within transboundary watersheds
+
+```{r}
+
+trans_basins<-shp_basins %>% 
+  mutate(total_sed_bas2<-ifelse(n_iso3>1, total_sed_bas, NA),
+    total_sed_bas_mt = total_sed_bas2/1000000)
+
+
+#Needs to be categorical to have histogram
+
+trans_sed_map<-tm_shape(trans_basins) +
+    tm_fill("total_sed_bas_mt", 
+              #  breaks = breaks,
+                style = "cont", 
+                title = "         Sediment (Mt)",
+                palette = "-RdYlBu",
+            colorNA = "lightgrey",
+            textNA = "Not transboundary",
+            legend.is.portrait = FALSE) +
+  tm_borders(lwd = 0.9) +
+  #tm_legend(legend.position = c("bottom")) +
+  tm_shape(world) +
+   tm_borders(col = "black",
+              lwd = 0.1,
+              alpha = 0.5) +
+    tm_layout(legend.outside = T,
+            legend.outside.position = "bottom",
+            legend.position = c(0.1, 0.1),
+            frame = F) 
+```
+
+```{r}
+trans_sed_map
+```
+
+Figure 1B
+```{r}
+tmap_save(trans_sed_map, here("figures/Global_sediment_per_trans_basin.png"), dpi = 300)
+```
+
+# Country terrestrial transboundary sediment
+
+```{r}
+terr_files<-list.files(here("output_data/Sediment/"), pattern = ".shp", full.names = TRUE)
+
+terr_sed<-do.call(rbind,
+                  lapply(terr_files, st_read))
+```
+
+```{r}
+trans_basins<-shp_basins %>% 
+  filter(n_iso3 >1)
+
+trans_terr_sed<-terr_sed %>% 
+  mutate(sed_sum2 = ifelse(MAIN_BAS %in% trans_basins$MAIN_BAS, sed_sum/1000000, NA)) %>% 
+  st_transform(., "+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs") %>% 
+  dplyr::select(ISO3, Country, MAIN_BAS, sed_sum, sed_sum2)
+```
+
+```{r}
+terr_sed_map<-tm_shape(trans_terr_sed) +
+    tm_fill("sed_sum2", 
+               # breaks = breaks,
+                style = "cont", 
+                title = "        Sediment (Mt)",
+                palette = "-RdYlBu",
+            colorNA = "lightgrey",
+            textNA = "Not transboundary",
+            legend.is.portrait = FALSE) +
+  #tm_borders(lwd = 0.75)+
+  #tm_legend(legend.position = c("bottom")) +
+  tm_layout(legend.outside = T,
+            legend.outside.position = "bottom",
+            legend.position = c(0.1, 0.1),
+            frame = F) +
+  tm_shape(shp_basins) +
+    tm_borders()#+
+ # tm_shape(world) +
+  #  tm_borders(lwd = 0.25)
+  
+
+```
+
+
+
+```{r}
+terr_sed_map
+```
+
+Figure not used in final version
+```{r}
+#tmap_save(terr_sed_map, here("figures/Global_sediment_per_trans_iso3_basin.png"), dpi = 300)
+```
+
 
 
 # EEZ sediment transport
@@ -165,6 +262,7 @@ eez_map<-tm_shape(sub_eez_sink) +
 eez_map
 ```
 
+Figure 1C
 ```{r}
 eez_map2<-eez_map +
   tm_shape(world) +
@@ -174,15 +272,16 @@ eez_map2
 
 ```
 ```{r}
-tmap_save(eez_map, here("figures/EEZ_sediment_totals.png"), dpi = 300)
+tmap_save(eez_map, here("figures/EEZ_sediment_totals_Figure1C.png"), dpi = 300)
 ```
 
 ```{r}
-combined<-n_map + eez_map
+#combined<-n_map + eez_map
 ```
 
+
 ```{r}
-tmap_save(combined, here("figures/EEZ_sediment_Country_basin_combined.png"), dpi = 300)
+#tmap_save(combined, here("figures/EEZ_sediment_Country_basin_combined.png"), dpi = 300)
 
 ```
 

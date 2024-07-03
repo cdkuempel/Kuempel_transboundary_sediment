@@ -52,7 +52,7 @@ gadm_area<-st_read(here("output_data/GADM36/gadm36_dissolve_area.shp")) %>%
 ## Basins
 
 ```{r}
-basins_area<-st_read(here("output_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
+basins_area<-st_read(here("raw_data/Basins/Basins_lv8_mainbasin_moll.shp")) %>% 
   st_make_valid() %>% 
   mutate(b_area_km2 = as.numeric(st_area(.))*1e-6)
 ```

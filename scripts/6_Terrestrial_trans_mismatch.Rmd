@@ -19,7 +19,7 @@ t_crs<-'ESRI:54009'
 
 # Load data
 
-Proportin of basin in each country
+Proportion of basin in each country
 ```{r}
 files<-list.files(path = here("output_data"), pattern = "Prop_basin_iso3_", full.names = T)
 
