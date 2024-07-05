@@ -2,6 +2,16 @@
 
 These script accompany the publication by Kuempel and Suarez-Castro published in PNAS (2024).
 
+# Raw data
+
+The raw data to reproduce these analyses can be downloaded from the following sources and should be placed within corresponding folders into a raw_data folder within the R project before running the scripts.
+
+[GADM36 country boundaries](https://gadm.org/download_country36.html)
+[EEZ - Maritime Boundaries v11](https://www.marineregions.org/downloads.php)
+[HdyroBasins](https://www.hydrosheds.org/products/hydrobasins)
+[Global Sedimentation - Suarez Castro et al. 2021](https://datadryad.org/stash/dataset/doi:10.5061/dryad.g4f4qrfqq)
+[RiverAtlas](https://www.hydrosheds.org/hydroatlas)
+
 
 # Scripts
 
